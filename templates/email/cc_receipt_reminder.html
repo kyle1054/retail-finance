@@ -1,0 +1,94 @@
+{#- Simple cardholder notice. Transaction details stay in the authenticated
+    portal; this email only explains why the recipient should open it.
+
+    The hybrid fluid wrapper gives classic Outlook a 620px desktop card and
+    Outlook mobile a 100%-width layout. Inline styles, opaque bgcolor fallbacks
+    and presentation tables avoid Word-rendering surprises. -#}
+{%- set INK = '#1c1c1c' -%}
+{%- set BODY = '#4a4542' -%}
+{%- set MUTED = '#746f6c' -%}
+{%- set CREAM = '#f0ece8' -%}
+{%- set SOFT = '#faf8f6' -%}
+{%- set LINE = '#ddd6d0' -%}
+{%- set ACCENT = '#823721' -%}
+{%- set SURFACE = '#fdfcfb' -%}
+{%- set BUTTON_TEXT = '#fffaf7' -%}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light only">
+  <meta name="supported-color-schemes" content="light only">
+  <title>Your card transactions have been updated</title>
+</head>
+<body bgcolor="{{ CREAM }}" style="width:100%;margin:0;padding:0;background-color:{{ CREAM }};font-family:Arial,Helvetica,sans-serif;color:{{ BODY }};-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
+<div style="display:none;font-size:1px;color:{{ CREAM }};line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">
+  Your {{ card_label }} card transactions have been updated.
+</div>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+       bgcolor="{{ CREAM }}" style="width:100%;background-color:{{ CREAM }};border-collapse:collapse;">
+ <tr>
+  <td align="center" style="padding:24px 12px;">
+   <!--[if mso]>
+   <table role="presentation" width="620" cellpadding="0" cellspacing="0" border="0"><tr><td>
+   <![endif]-->
+   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+          bgcolor="{{ SURFACE }}" style="width:100%;max-width:620px;margin:0 auto;background-color:{{ SURFACE }};border:1px solid {{ LINE }};border-collapse:separate;border-spacing:0;border-radius:12px;overflow:hidden;">
+    <tr>
+     <td bgcolor="{{ ACCENT }}" style="height:5px;line-height:5px;font-size:1px;background-color:{{ ACCENT }};">&nbsp;</td>
+    </tr>
+
+    <tr>
+     <td bgcolor="{{ SURFACE }}" style="padding:30px 28px 26px;background-color:{{ SURFACE }};font-family:Arial,Helvetica,sans-serif;">
+      <div style="font-size:10px;line-height:14px;letter-spacing:2px;color:{{ ACCENT }};font-weight:bold;text-transform:uppercase;">
+       Northwind Apparel
+      </div>
+      <h1 style="font-family:Arial,Helvetica,sans-serif;font-size:26px;line-height:32px;font-weight:bold;color:{{ INK }};margin:0;padding-top:10px;">
+       Card transactions updated
+      </h1>
+     </td>
+    </tr>
+
+    <tr>
+     <td bgcolor="{{ SURFACE }}" style="padding:0 28px 32px;background-color:{{ SURFACE }};font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:25px;mso-line-height-rule:exactly;color:{{ BODY }};">
+      <p style="margin:0 0 18px;color:{{ INK }};">Hi{% if recipient_name %} {{ recipient_name }}{% endif %},</p>
+      <p style="margin:0 0 18px;">
+       The transactions for your <strong style="color:{{ INK }};">{{ card_label }}</strong> company card have been updated.
+      </p>
+      <p style="margin:0 0 24px;">
+       When you have a moment, please open the card portal and provide any outstanding receipts or VAT invoices.
+       The portal will show you if anything else is needed.
+      </p>
+
+      {#- Outlook ignores padding on a bare link, so the CTA remains table-wrapped. -#}
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+             style="width:100%;border-collapse:separate;border-spacing:0;margin:0;">
+       <tr>
+        <td align="center" bgcolor="{{ ACCENT }}" style="background-color:{{ ACCENT }};border-radius:7px;padding:15px 20px;">
+         <a href="{{ portal_url }}" style="color:{{ BUTTON_TEXT }} !important;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:20px;font-weight:bold;text-decoration:none;display:block;">
+          Open card portal&nbsp;&nbsp;→
+         </a>
+        </td>
+       </tr>
+      </table>
+
+      <p style="margin:24px 0 0;color:{{ BODY }};">Thank you,<br><strong style="color:{{ INK }};">Finance</strong></p>
+     </td>
+    </tr>
+
+    <tr>
+     <td bgcolor="{{ SOFT }}" style="background-color:{{ SOFT }};border-top:1px solid {{ LINE }};padding:18px 28px;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;mso-line-height-rule:exactly;color:{{ MUTED }};">
+      If you need help or see a transaction that isn’t yours, reply to this email.
+     </td>
+    </tr>
+   </table>
+   <!--[if mso]>
+   </td></tr></table>
+   <![endif]-->
+  </td>
+ </tr>
+</table>
+</body>
+</html>

@@ -1,0 +1,53 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # The tests build their own database from the migrations, so this is not
+      # a setup step for them -- it is a smoke test of its own. A schema that
+      # cannot be built from scratch is a real break (it was, once: the early
+      # cents migrations expected columns the bootstrap had stopped creating),
+      # and nothing else in the suite would notice.
+      - name: Bootstrap a database from scratch
+        env:
+          NW_DB_PATH: /tmp/ci-bootstrap.db
+          NW_ADMIN_PASSWORD: ci-throwaway-not-a-secret
+        run: python scripts/init_db.py
+
+      # Same reasoning for the demo dataset: it shares its generator with the
+      # test fixtures, so a change that breaks only the larger profile would
+      # otherwise ship unnoticed.
+      - name: Seed the demo dataset
+        env:
+          NW_DB_PATH: /tmp/ci-demo.db
+          NW_DEMO_PASSWORD: ci-throwaway-not-a-secret
+        run: python scripts/seed_demo.py --reset
+
+      - name: Run tests
+        run: pytest -q

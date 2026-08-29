@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Northwind Apparel — Deductions</title>
+    <link href="{{ url_for('static', filename='vendor/inter.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='vendor/bootstrap.purged.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='vendor/bootstrap-icons.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='landing.css') }}" rel="stylesheet">
+</head>
+<body>
+    <div class="entry">
+        <div class="brand">
+            <span class="mark is-visible" role="img" aria-label="Northwind Apparel"><i class="bi bi-layers-fill"></i></span>
+            <p>Staff Deductions</p>
+        </div>
+
+        <form class="card" method="post" action="{{ url_for('landing') }}">
+            <h1>Sign in</h1>
+            <p class="lead">Welcome back to Northwind Apparel.</p>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% for cat, msg in messages %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}
+            {% endwith %}
+
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="next" value="{{ next or '' }}">
+
+            <label for="loginIdentifier">Username or store email</label>
+            <input id="loginIdentifier" type="text" name="identifier" value="{{ identifier or '' }}"
+                   autocomplete="username" autofocus required>
+            <label for="loginPassword">Password</label>
+            <input id="loginPassword" type="password" name="password"
+                   autocomplete="current-password" required>
+            <button class="login-btn" type="submit"><i class="bi bi-box-arrow-in-right"></i> Sign in</button>
+
+            <p class="hint">Admins sign in with their username.<br>Stores sign in with their store email.</p>
+        </form>
+
+
+        {% if demo_mode and demo_personas %}
+        <div class="demo">
+            <p class="demo-lead">This is a demonstration with invented data.
+               Pick a role to see what that person sees.</p>
+            {% for p in demo_personas %}
+            <form method="post" action="{{ url_for('landing') }}" class="demo-role">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="identifier" value="{{ p.identifier }}">
+                <input type="hidden" name="password" value="{{ demo_password }}">
+                <button type="submit">
+                    <span class="demo-role-label">{{ p.label }}</span>
+                    <span class="demo-role-blurb">{{ p.blurb }}</span>
+                    <span class="demo-role-who">{{ p.who }}</span>
+                </button>
+            </form>
+            {% endfor %}
+            <p class="demo-note">Each button signs in through the ordinary form
+               above — same password check, no shortcut.</p>
+        </div>
+        {% endif %}
+
+        <div class="foot"><i class="bi bi-lock"></i>&nbsp; Secure area · © Northwind Apparel</div>
+    </div>
+</body>
+</html>

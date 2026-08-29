@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block title %}Staff Logins — NORTHWIND{% endblock %}
+{% block page_title %}Staff Logins{% endblock %}
+
+{% block content %}
+<link href="{{ url_for('static', filename='admin-staff-logins.css') }}" rel="stylesheet">
+
+<div class="tab-btns" role="tablist" aria-label="Staff login management">
+    <button class="tab-btn active" type="button" id="staffTabEmails"
+            role="tab" aria-selected="true" aria-controls="tab-emails"
+            data-access-tab="emails">Store Emails</button>
+    <button class="tab-btn" type="button" id="staffTabImport"
+            role="tab" aria-selected="false" aria-controls="tab-import" tabindex="-1"
+            data-access-tab="import">Bulk Import</button>
+</div>
+
+<p style="font-size:13px; color:var(--text-secondary); margin:0 0 18px;">
+    Staff log in with their <strong>store email</strong>. A store can have its
+    <strong>own password</strong> (recommended) or fall back to the shared staff
+    password until one is set. Each store sees only its own staff.
+</p>
+
+{% if new_credential %}
+<div style="padding:16px 18px; border-radius:12px; border:1px solid #b8903055;
+    background:rgba(176,106,44,.08); margin-bottom:20px;">
+    <div style="font-size:11px; text-transform:uppercase; letter-spacing:.04em;
+        color:var(--text-secondary); font-weight:700;">
+        New password for {{ new_credential.store }} — copy it now, it won't be shown again</div>
+    <div style="margin-top:8px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+        <span style="color:var(--text-secondary);">{{ new_credential.email }}</span>
+        <code id="storecred" style="font-size:16px; font-weight:700; color:var(--text-primary);
+            background:var(--bg-base); padding:4px 10px; border-radius:7px;">{{ new_credential.password }}</code>
+        <button class="btn-sm-action" type="button" data-copy-target="storecred">
+            <i class="bi bi-clipboard"></i> Copy</button>
+    </div>
+</div>
+{% endif %}
+
+{# ── TAB 1: Store Emails ── #}
+<div id="tab-emails" class="tab-panel active" role="tabpanel"
+     aria-labelledby="staffTabEmails">
+    <div class="mgmt-section">
+        <div class="mgmt-header">
+            <h2><i class="bi bi-envelope-fill"></i> Store Email Mappings</h2>
+            <span class="mgmt-count">{{ store_emails|length }} configured</span>
+        </div>
+
+        {% if store_emails %}
+        <div style="overflow-x:auto; border-radius:12px; border:1px solid var(--border);">
+        <table class="mgmt-table">
+            <thead><tr><th>Store</th><th>Email</th><th>Password</th><th style="width:200px;"></th></tr></thead>
+            <tbody>
+            {% for se in store_emails %}
+            {% set has_own = se.email in own_pw %}
+            <tr>
+                <td><strong>{{ se.store }}</strong></td>
+                <td><span class="email-pill"><i class="bi bi-envelope"></i> {{ se.email }}</span></td>
+                <td>
+                    {% if has_own %}
+                    <span style="font-size:12px; font-weight:600; color:#235e54;">
+                        <i class="bi bi-shield-check"></i> Own password</span>
+                    {% else %}
+                    <span class="no-code"><i class="bi bi-shield"></i> Shared password</span>
+                    {% endif %}
+                </td>
+                <td style="display:flex; gap:6px; align-items:center;">
+                    <form method="post" action="{{ url_for('admin_set_store_password') }}" style="margin:0;"
+                          data-confirm="{{ 'Reset' if has_own else 'Set' }} an own password for {{ se.store }}? A new one will be generated.">
+                        <input type="hidden" name="email" value="{{ se.email }}">
+                        <button class="btn-sm-action" type="submit">
+                            <i class="bi bi-key"></i> {{ 'Reset' if has_own else 'Set password' }}</button>
+                    </form>
+                    {% if has_own %}
+                    <form method="post" action="{{ url_for('admin_clear_store_password') }}" style="margin:0;"
+                          data-confirm="Revert {{ se.store }} to the shared password?">
+                        <input type="hidden" name="email" value="{{ se.email }}">
+                        <button class="btn-sm-action" type="submit">Revert</button>
+                    </form>
+                    {% endif %}
+                    <form method="post" action="{{ url_for('admin_delete_store_email', email_id=se.id) }}"
+                          data-confirm="Remove this email mapping?" style="margin:0;">
+                        <button class="btn-sm-action danger" type="submit"><i class="bi bi-trash3"></i></button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% else %}
+        <div style="padding:32px; text-align:center; color:var(--text-secondary); font-size:14px;
+            border-radius:12px; border:1px dashed var(--border);">
+            <i class="bi bi-envelope" style="font-size:28px; display:block; margin-bottom:8px; opacity:.4;"></i>
+            No store emails configured yet. Add one below or use bulk import.
+        </div>
+        {% endif %}
+
+        <form method="post" action="{{ url_for('admin_add_store_email') }}" style="margin-top:16px;">
+            <div class="add-row">
+                <div class="field">
+                    <label>Store</label>
+                    <select name="store" required>
+                        <option value="">Select store…</option>
+                        {% for s in stores %}
+                        <option value="{{ s }}">{{ s }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="field">
+                    <label>Email address</label>
+                    <input type="email" name="email" placeholder="store@northwind-apparel.example" required>
+                </div>
+                <button class="btn-sm-action" type="submit" style="height:38px; margin-bottom:1px;">
+                    <i class="bi bi-plus-lg"></i> Add
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{# ── TAB 2: Bulk Import ── #}
+<div id="tab-import" class="tab-panel" role="tabpanel"
+     aria-labelledby="staffTabImport" hidden>
+    <div class="mgmt-section">
+        <div class="import-form">
+            <h2 style="font-size:16px; font-weight:700; color:var(--text-primary); margin:0 0 16px;">
+                <i class="bi bi-file-earmark-arrow-up" style="opacity:.6;"></i> Bulk Import Store Emails
+            </h2>
+            <form method="post" action="{{ url_for('admin_import_store_emails') }}">
+                <label>Paste store emails (one per line)</label>
+                <textarea class="bulk-box" name="bulk_emails" rows="6"
+                    placeholder="Store Name,email@example.com&#10;Riverbend,riverbend@northwind-apparel.example&#10;Westgate,westgate@northwind-apparel.example"></textarea>
+                <p class="help">Format: <code>Store Name,email</code> — one mapping per line. Tab-separated also works.</p>
+                <button class="btn-sm-action" type="submit" style="margin-top:10px;">
+                    <i class="bi bi-cloud-upload"></i> Import store emails
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='access-pages.js') }}"></script>{% endblock %}

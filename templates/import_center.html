@@ -1,0 +1,256 @@
+{% extends 'base.html' %}
+
+{% block title %}Import Center - Northwind Deductions{% endblock %}
+
+{% block page_title %}Deductions Import Center{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-2">
+    <div class="row mb-4">
+        <div class="col-12 text-muted" style="font-size:14px;">
+            <i class="bi bi-info-circle me-1"></i> Upload deduction Excel files directly to parse, fuzzy-match employee records, and safely merge data into the SQLite database. Download a database backup under the **Backup** tab before running massive imports.
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Card 1: Uniform Importer -->
+        <div class="col-md-6 col-lg-4">
+            <div class="card border-0 shadow-sm h-100" style="border-radius:16px;overflow:hidden;transition:all 0.3s ease;">
+                <div class="card-header border-0 py-3 d-flex align-items-center gap-3" style="background:#8a5220;color:#fff;">
+                    <div style="width:40px;height:40px;border-radius:10px;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;">
+                        <i class="bi bi-bag-fill" style="font-size:20px;"></i>
+                    </div>
+                    <div>
+                        <h6 class="mb-0 fw-bold">AW26 Uniform Importer</h6>
+                        <small style="opacity:0.8;font-size:11px;">Staff Uniform Excel Template</small>
+                    </div>
+                </div>
+                <div class="card-body d-flex flex-column justify-content-between p-4" style="background:#fff;">
+                    <div>
+                        <p style="font-size:13px;color:#64748b;line-height:1.6;" class="mb-3">
+                            Imports and groups multiple uniform items from all retail sheets (excluding Master/J/Payroll). Detects payments_made from green-highlighted cells (<code>FF92D050</code>).
+                        </p>
+                        <div class="p-2 mb-3 bg-light border" style="border-radius:8px;font-size:11px;color:#475569;font-family:monospace;">
+                            <strong>Expected Layout:</strong><br>
+                            Col A: Name | Col B: Surname | Col C: SKU | Col D: Description | Col E: Monthly | Col F: Term
+                        </div>
+                    </div>
+                    <form method="post" action="{{ url_for('import_uniforms_action') }}" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label class="form-label" style="font-size:12px;font-weight:600;color:#334155;">Select Uniform Template</label>
+                            <input type="file" name="file" class="form-control form-control-sm" accept=".xlsx, .xls" required>
+                        </div>
+                        <button type="submit" class="btn btn-warning btn-sm w-100 fw-bold" style="border-radius:8px;padding:8px 0;background:#8a5220;border:none;color:#fff;">
+                            <i class="bi bi-file-earmark-arrow-up me-1"></i> Upload &amp; Import Uniforms
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 2: Lay-by Importer -->
+        <div class="col-md-6 col-lg-4">
+            <div class="card border-0 shadow-sm h-100" style="border-radius:16px;overflow:hidden;transition:all 0.3s ease;">
+                <div class="card-header border-0 py-3 d-flex align-items-center gap-3" style="background:#235e54;color:#fff;">
+                    <div style="width:40px;height:40px;border-radius:10px;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;">
+                        <i class="bi bi-cart-fill" style="font-size:20px;"></i>
+                    </div>
+                    <div>
+                        <h6 class="mb-0 fw-bold">Lay-by Importer</h6>
+                        <small style="opacity:0.8;font-size:11px;">Consolidated Lay-by Sheets</small>
+                    </div>
+                </div>
+                <div class="card-body d-flex flex-column justify-content-between p-4" style="background:#fff;">
+                    <div>
+                        <p style="font-size:13px;color:#64748b;line-height:1.6;" class="mb-3">
+                            Batch uploads active customer lay-by deductions. Integrates fuzzy employee mappings and auto-creates item line records inside `layby_items` automatically.
+                        </p>
+                        <div class="p-2 mb-3 bg-light border" style="border-radius:8px;font-size:11px;color:#475569;font-family:monospace;">
+                            <strong>Expected Layout:</strong><br>
+                            Col A: Store | Col B: Employee | Col C: Sale # | Col D: Description | Col E: Basket Total | Col F: Term
+                        </div>
+                    </div>
+                    <form method="post" action="{{ url_for('import_laybys_action') }}" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label class="form-label" style="font-size:12px;font-weight:600;color:#334155;">Select Lay-by Excel</label>
+                            <input type="file" name="file" class="form-control form-control-sm" accept=".xlsx, .xls" required>
+                        </div>
+                        <button type="submit" class="btn btn-teal btn-sm w-100 fw-bold" style="border-radius:8px;padding:8px 0;background:#235e54;border:none;color:#fff;">
+                            <i class="bi bi-file-earmark-arrow-up me-1"></i> Upload &amp; Import Lay-bys
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 3: Roster & Undercharges Sync -->
+        <div class="col-md-6 col-lg-4">
+            <div class="card border-0 shadow-sm h-100" style="border-radius:16px;overflow:hidden;transition:all 0.3s ease;">
+                <div class="card-header border-0 py-3 d-flex align-items-center gap-3" style="background:#1c1c1c;color:#fff;">
+                    <div style="width:40px;height:40px;border-radius:10px;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;">
+                        <i class="bi bi-people-fill" style="font-size:20px;"></i>
+                    </div>
+                    <div>
+                        <h6 class="mb-0 fw-bold">Employee Roster Sync</h6>
+                        <small style="opacity:0.8;font-size:11px;">Payroll Excel Sync</small>
+                    </div>
+                </div>
+                <div class="card-body d-flex flex-column justify-content-between p-4" style="background:#fff;">
+                    <div>
+                        <p style="font-size:13px;color:#64748b;line-height:1.6;" class="mb-3">
+                            Pulls fresh employee records directly from your monthly payroll spreadsheets. Safely inserts new hires and maps reassignments.
+                        </p>
+                        <div class="p-2 mb-3 bg-light border" style="border-radius:8px;font-size:11px;color:#475569;font-family:monospace;">
+                            <strong>Expected Layout:</strong><br>
+                            Col A: Name (Surname, Firstname) | Col B: Store | Col C: Job Title (Manager/Ambassador)
+                        </div>
+                    </div>
+                    <div class="d-flex flex-column gap-2">
+                        <a href="{{ url_for('payroll_sync') }}" class="btn btn-outline-secondary btn-sm w-100 py-2" style="border-radius:8px;font-weight:600;">
+                            <i class="bi bi-arrow-repeat me-1"></i> Open Roster Sync Page
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 4: Restore Database Backup -->
+        {% if session.admin_role in (none, 'super') %}
+        <div class="col-md-6 col-lg-4">
+            <div class="card border-0 shadow-sm h-100" style="border-radius:16px;overflow:hidden;transition:all 0.3s ease;">
+                <div class="card-header border-0 py-3 d-flex align-items-center gap-3" style="background:#823721;color:#fff;">
+                    <div style="width:40px;height:40px;border-radius:10px;background:rgba(255,255,255,0.18);display:flex;align-items:center;justify-content:center;">
+                        <i class="bi bi-database-fill-up" style="font-size:20px;"></i>
+                    </div>
+                    <div>
+                        <h6 class="mb-0 fw-bold">Restore Database Backup</h6>
+                        <small style="opacity:0.8;font-size:11px;">Replaces ALL current data</small>
+                    </div>
+                </div>
+                <div class="card-body d-flex flex-column justify-content-between p-4" style="background:#fff;">
+                    <div>
+                        <p style="font-size:13px;color:#64748b;line-height:1.6;" class="mb-3">
+                            Uploads a <code>.db</code> backup (from <strong>Download Backup</strong>) and replaces the entire live database with it. The current data is snapshotted to the backups folder first, so a mistaken restore can be undone.
+                        </p>
+                        <div class="p-2 mb-3 border" style="border-radius:8px;font-size:11px;color:#5e2718;background:#fef2f2;">
+                            <i class="bi bi-exclamation-triangle-fill me-1"></i><strong>Careful:</strong> everything entered since the backup was taken will be replaced.
+                        </div>
+                    </div>
+                    <form method="post" action="{{ url_for('restore_backup') }}" enctype="multipart/form-data">
+                        <div class="mb-2">
+                            <label class="form-label" style="font-size:12px;font-weight:600;color:#334155;">Select Backup File</label>
+                            <input type="file" name="backup_file" class="form-control form-control-sm" accept=".db" required>
+                        </div>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" name="confirm" value="yes" id="confirm-restore" required>
+                            <label class="form-check-label" for="confirm-restore" style="font-size:12px;color:#475569;">
+                                I understand this replaces all current data
+                            </label>
+                        </div>
+                        <button type="submit" class="btn btn-sm w-100 fw-bold" style="border-radius:8px;padding:8px 0;background:#823721;border:none;color:#fff;">
+                            <i class="bi bi-database-fill-up me-1"></i> Restore Backup
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Import Results Pane -->
+    {% if results %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm" style="border-radius:16px;overflow:hidden;">
+                <div class="card-header border-0 bg-dark text-white py-3 d-flex justify-content-between align-items-center">
+                    <span class="fw-bold"><i class="bi bi-clipboard-data me-2"></i>Last Import Operation Results Summary</span>
+                    <span class="badge bg-secondary" style="font-size:11px;">Completed</span>
+                </div>
+                <div class="card-body p-4 bg-white">
+                    <div class="row g-3 mb-4 text-center">
+                        <div class="col-6 col-sm-3">
+                            <div class="p-3 bg-light border" style="border-radius:12px;">
+                                <div style="font-size:11px;color:#64748b;text-transform:uppercase;font-weight:600;">Inserted</div>
+                                <div style="font-size:26px;font-weight:800;color:#3b6d3f;">{{ results.inserted }}</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-sm-3">
+                            <div class="p-3 bg-light border" style="border-radius:12px;">
+                                <div style="font-size:11px;color:#64748b;text-transform:uppercase;font-weight:600;">Skipped (Duplicate)</div>
+                                <div style="font-size:26px;font-weight:800;color:#94a3b8;">{{ results.skipped }}</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-sm-3">
+                            <div class="p-3 bg-light border" style="border-radius:12px;">
+                                <div style="font-size:11px;color:#64748b;text-transform:uppercase;font-weight:600;">Unmatched Names</div>
+                                <div style="font-size:26px;font-weight:800;color:#823721;">{{ results.unmatched|length }}</div>
+                            </div>
+                        </div>
+                        <div class="col-6 col-sm-3">
+                            <div class="p-3 bg-light border" style="border-radius:12px;">
+                                <div style="font-size:11px;color:#64748b;text-transform:uppercase;font-weight:600;">Details Created</div>
+                                <div style="font-size:26px;font-weight:800;color:#2f4d7a;">{{ results.created_employees }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if results.logs %}
+                    <h6 class="fw-bold mb-2 text-secondary"><i class="bi bi-file-earmark-text me-2"></i>Detailed Action Logs</h6>
+                    <div style="max-height:260px;overflow-y:auto;background:#0f172a;color:#f8fafc;padding:16px;border-radius:12px;font-family:monospace;font-size:12px;line-height:1.7;" class="mb-4">
+                        {% for log in results.logs %}
+                            <div class="mb-1">{{ log }}</div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    {% if results.unmatched %}
+                    <div class="alert mb-0 py-3" style="background:rgba(168,71,47,0.06);border:1px solid rgba(168,71,47,0.22);border-radius:12px;">
+                        <h6 class="fw-bold text-danger mb-2"><i class="bi bi-exclamation-circle-fill me-2"></i>Unmatched Names Requiring Auditing ({{ results.unmatched|length }} rows)</h6>
+                        <p style="font-size:12px;color:#823721;" class="mb-3">
+                            The following employee names from the sheet could not be mapped to any active user record. Fix their spellings inside the Excel file and re-upload, or verify that the employee is added under the roster.
+                        </p>
+                        <div class="table-responsive">
+                            <table class="table table-sm mb-0 align-middle" style="font-size:12px;color:#334155;">
+                                <thead>
+                                    <tr>
+                                        <th>Excel Sheet Name</th>
+                                        <th>Row #</th>
+                                        <th>Individual Name In Row</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in results.unmatched %}
+                                    <tr>
+                                        <td class="fw-semibold">{{ item.sheet }}</td>
+                                        <td><code>Row {{ item.row_num }}</code></td>
+                                        <td class="text-danger fw-bold">{{ item.name }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Styling enhancements for card hover effects
+    document.querySelectorAll('.card').forEach(card => {
+        card.addEventListener('mouseover', () => {
+            card.style.transform = 'translateY(-5px)';
+            card.style.boxShadow = '0 12px 24px -10px rgba(0,0,0,0.12)';
+        });
+        card.addEventListener('mouseout', () => {
+            card.style.transform = 'translateY(0)';
+            card.style.boxShadow = '';
+        });
+    });
+</script>
+{% endblock %}

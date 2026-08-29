@@ -1,0 +1,923 @@
+{% extends 'portal_base.html' %}
+{% block title %}{{ card.display_name or card.card_name }} — Receipts{% endblock %}
+
+{% block content %}
+{% set pct = ((complete / total) * 100) | round(0, 'floor') | int if total else 0 %}
+{# Formats a browser will actually render inline. Decided from the STORED
+   EXTENSION, matching cc_card.html, cc_review_drawer.html and the serve route's
+   own inline/attachment call in cc_portal_file — one rule, in one shape, in
+   every place that has to make this decision.
+
+   This used to test `'image' in content_type`, which let `image/heic` through:
+   the page emitted an <img> and a lightbox entry for a file no browser can
+   decode and that the server sends as an attachment anyway, so it rendered as a
+   broken thumbnail that started a download when clicked. New HEIC uploads are
+   converted to JPEG on the way in (northwind/services/images.py), but rows uploaded
+   before that are still .heic and still land here. #}
+{% set browser_image_exts = ['png', 'jpg', 'jpeg', 'gif', 'webp'] %}
+<link rel="stylesheet" href="{{ url_for('static', filename='cc-portal.css') }}">
+
+{# Two ways through the same month: the whole list, or one transaction at a
+   time. "One at a time" is just the existing focus mode pointed at the first
+   thing that still needs work, so every form round-trip keeps working. #}
+{% if statement and rows %}
+<nav class="cc-view-switch" aria-label="Transaction view">
+    <span>View</span>
+    {% if focus_row %}
+    <a href="{{ url_for('cc_portal_card', card_id=card.id, statement_id=statement.id) }}">
+        <i class="bi bi-list-ul"></i> List</a>
+    <strong aria-current="page"><i class="bi bi-square"></i> One at a time</strong>
+    {% else %}
+    <strong aria-current="page"><i class="bi bi-list-ul"></i> List</strong>
+    <a href="{{ url_for('cc_portal_card', card_id=card.id, statement_id=statement.id, focus=(next_row or rows[0]).l.id) }}">
+        <i class="bi bi-square"></i> One at a time</a>
+    {% endif %}
+</nav>
+{% endif %}
+
+<div class="portal-card cc-head">
+    <div class="cc-head-row">
+        <div>
+            <div class="portal-title">{{ card.display_name or card.card_name }}</div>
+            {% if not focus_row %}
+            <div class="portal-sub">Upload the receipts &amp; invoices for the transactions below.</div>
+            {% endif %}
+        </div>
+        {% if session.admin and not session.cc_user %}<a href="{{ url_for('cc_home') }}" class="admin-pill">Back to cards</a>{% endif %}
+    </div>
+
+    {% if statement %}
+    {# One at a time keeps only the headline and the bar: the focus nav below
+       already says which transaction this is, and every stat in between just
+       pushes the one thing you came to do off the screen. #}
+    <div class="cc-progress{% if focus_row %} is-slim{% endif %}">
+        <div class="cc-progress-top">
+            <span><strong>{{ complete }}</strong> of <strong>{{ total }}</strong> transactions complete</span>
+            <span class="cc-progress-pct">{{ pct }}%</span>
+        </div>
+        <div class="cc-bar" role="progressbar" aria-label="Transaction completion"
+             aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ pct }}"
+             aria-valuetext="{{ complete }} of {{ total }} transactions complete">
+            <div class="cc-bar-fill" style="width: {{ pct }}%;"></div></div>
+        {% if not focus_row %}
+        <div class="cc-progress-sub">
+            <span><i class="bi bi-paperclip"></i> Receipts {{ covered }}/{{ receipt_required }}</span>
+            <span><i class="bi bi-chat-left-text"></i> Reasons {{ with_reason }}/{{ total }}</span>
+            <span><i class="bi bi-geo-alt"></i> Locations {{ with_location }}/{{ total }}</span>
+            {% if pending_ai_count %}
+            <span class="cc-attention-text"><i class="bi bi-stars"></i> AI confirmations {{ pending_ai_count }}</span>
+            {% endif %}
+            {% if vat_invoice_request_count %}
+            <span class="cc-attention-text"><i class="bi bi-file-earmark-text"></i> VAT invoices {{ vat_invoice_request_count }}</span>
+            {% endif %}
+            {# Ready is already carried by the "Select ready" button and its filter
+               chip, and Submitted only means anything once something has been —
+               dropping both stops this row wrapping to three lines on a phone. #}
+            {% if submitted_count %}
+            <span><i class="bi bi-send-check"></i> Submitted {{ submitted_count }}/{{ total }}</span>
+            {% endif %}
+        </div>
+        {% if outstanding_cents %}
+        <div class="cc-progress-money">
+            <i class="bi bi-cash-coin"></i>
+            <strong>R {{ (outstanding_cents/100)|rands }}</strong> of
+            R {{ (receipt_required_cents/100)|rands }} still needs receipts
+        </div>
+        {% else %}
+        <div class="cc-progress-money cc-all-in"><i class="bi bi-check-circle-fill"></i>
+            All standard receipts are in{% if not vat_invoice_request_count %} — nice one!{% endif %}</div>
+        {% endif %}
+        {% if vat_invoice_request_count %}
+        <div class="cc-progress-money cc-vat-progress"><i class="bi bi-file-earmark-text"></i>
+            <strong>{{ vat_invoice_request_count }} VAT tax invoice{{ '' if vat_invoice_request_count == 1 else 's' }}</strong>
+            requested by finance</div>
+        {% endif %}
+        {% if personal_count %}
+        <div class="cc-progress-money"><i class="bi bi-person-badge"></i>
+            {{ personal_count }} personal charge{{ '' if personal_count == 1 else 's' }} ·
+            R {{ (personal_cents/100)|rands }} to repay</div>
+        {% endif %}
+        {% if next_row %}
+        <a class="btn btn-primary cc-continue"
+           href="{{ url_for('cc_portal_card', card_id=card.id, statement_id=statement.id, focus=next_row.l.id) }}"
+            data-next-action="{{ next_row.next_action }}">
+            <strong>Continue next task</strong>
+            <span>{% if next_row.next_action == 'vat_invoice' %}Upload a VAT invoice{% elif next_row.next_action == 'receipt' %}Add a receipt{% elif next_row.next_action == 'reason' %}Add a reason{% elif next_row.next_action == 'location' %}Add a location{% else %}Review AI match{% endif %}</span>
+            <i class="bi bi-arrow-down"></i>
+        </a>
+        {% elif ready_count %}
+        <a class="btn btn-success cc-continue" href="#ccReadyStart">
+            Submit ready transactions <span>{{ ready_count }} ready</span>
+            <i class="bi bi-arrow-down"></i>
+        </a>
+        {% endif %}
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+{% if ai_enabled and ai_status and (ai_status.processing or ai_status.pending or ai_status.failed) %}
+<div class="portal-card cc-ai-status" role="status" aria-live="polite">
+    {% if ai_status.processing or ai_status.pending %}
+    <span><i class="bi bi-arrow-repeat"></i> Matching {{ ai_status.processing + ai_status.pending }} uploaded receipt{{ '' if (ai_status.processing + ai_status.pending) == 1 else 's' }} in the background.</span>
+    {% endif %}
+    {% if ai_status.failed %}
+    <span class="text-warning"><i class="bi bi-exclamation-triangle"></i> {{ ai_status.failed }} receipt{{ '' if ai_status.failed == 1 else 's' }} could not be read. Finance can retry these.</span>
+    {% endif %}
+    {% if ai_status.last_processed_at %}<small>Last processed {{ ai_status.last_processed_at[:16] }}</small>{% endif %}
+</div>
+{% endif %}
+
+{# Drop-off inbox — the place for receipts that have nowhere to go YET. With a
+   month loaded, "Add receipts" below posts straight into it and the AI starts
+   matching immediately, so a second uploader here would only cost the
+   cardholder an extra "Use this month" click. So this card appears when there
+   is no month loaded (its actual purpose), or when files are still waiting to
+   be claimed — and only offers the uploader in the first case. #}
+{% set inbox_upload = not statement %}
+{% if (inbox or inbox_upload) and not focus_row %}
+<div class="portal-card cc-dropoff" id="ccDropoff">
+    <div class="cc-dropoff-head">
+        <div class="cc-dropoff-title">
+            <i class="bi bi-inbox"></i> Drop-off inbox
+            {% if inbox %}<span class="cc-inbox-count">{{ inbox|length }}</span>{% endif %}
+        </div>
+        <div class="portal-sub mb-0">
+            {% if inbox_upload %}
+            Upload receipts here anytime — even before your transactions are loaded. They wait
+            here safely until you match them to a transaction and add a reason.
+            {% else %}
+            Receipts you dropped off before this month was loaded. Move one in to match it
+            to a transaction.
+            {% endif %}
+        </div>
+    </div>
+    {% if inbox_upload %}
+    <form method="post" action="{{ url_for('cc_portal_inbox_upload', card_id=card.id) }}"
+          enctype="multipart/form-data" class="cc-dropoff-form" id="ccInboxForm">
+        {% if statement %}<input type="hidden" name="statement_id" value="{{ statement.id }}">{% endif %}
+        {% if focus_id %}<input type="hidden" name="focus" value="{{ focus_id }}">{% endif %}
+        <input type="file" name="receipts" id="ccInboxFile" accept="image/*,.pdf,.heic,.heif" multiple hidden>
+        <input type="file" name="receipts" id="ccInboxCam" accept="image/*" capture="environment" hidden>
+        <button type="button" class="btn btn-outline-primary btn-sm" id="ccInboxBrowse">
+            <i class="bi bi-paperclip me-1"></i>Choose files</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm cc-cam-btn" data-cam="ccInboxCam">
+            <i class="bi bi-camera me-1"></i>Photo</button>
+        <span class="cc-dropoff-status" id="ccInboxStatus" role="status" aria-live="polite"></span>
+        <button type="submit" class="btn btn-primary btn-sm ms-auto" id="ccInboxGo" hidden>
+            <i class="bi bi-cloud-arrow-up me-1"></i>Drop off</button>
+        <div class="cc-inbox-progress" id="ccInboxProgress" role="progressbar" aria-label="Inbox upload progress"
+             aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden>
+            <span id="ccInboxFill"></span><strong id="ccInboxPct">Uploading… 0%</strong>
+        </div>
+    </form>
+    {% endif %}
+    {% if inbox %}
+    <div class="cc-inbox-grid">
+        {% for r in inbox %}
+        {% set is_img = (r.file_path or '').rsplit('.', 1)[-1]|lower in browser_image_exts %}
+        <div class="cc-inbox-tile">
+            <a class="cc-rcpt-thumb" href="{{ url_for('cc_portal_file', receipt_id=r.id) }}" target="_blank"
+               title="{{ r.original_filename }}"
+               {% if is_img %}data-preview-src="{{ url_for('cc_portal_file', receipt_id=r.id) }}" data-name="{{ r.original_filename }}"{% endif %}>
+                {% if is_img %}
+                <img src="{{ url_for('cc_portal_file', receipt_id=r.id) }}" alt="Dropped-off receipt" loading="lazy">
+                {% else %}
+                <span class="cc-rcpt-fileicon"><i class="bi bi-file-earmark-text"></i>{# Was hardcoded "PDF". Anything non-renderable lands here, so a legacy .heic row was labelled PDF. Show what it actually is. #}<span class="cc-rcpt-ext">{{ ((r.file_path or '').rsplit('.', 1)[-1]|upper)[:4] or 'FILE' }}</span></span>
+                {% endif %}
+            </a>
+            <div class="cc-inbox-name" title="{{ r.original_filename }}">{{ r.original_filename or 'file' }}</div>
+            <div class="cc-inbox-actions">
+                {% if statement and not locked %}
+                <form method="post" action="{{ url_for('cc_portal_inbox_assign', card_id=card.id) }}">
+                    <input type="hidden" name="receipt_id" value="{{ r.id }}">
+                    <input type="hidden" name="statement_id" value="{{ statement.id }}">
+                    {% if focus_id %}<input type="hidden" name="focus" value="{{ focus_id }}">{% endif %}
+                    <button type="submit" class="btn btn-sm btn-primary cc-inbox-use">
+                        <i class="bi bi-arrow-right-circle me-1"></i>Use this month</button>
+                </form>
+                {% endif %}
+                <form method="post" action="{{ url_for('cc_portal_delete_receipt', receipt_id=r.id) }}"
+                      onsubmit="return confirm('Delete this dropped-off receipt?')">
+                    {% if statement %}<input type="hidden" name="statement_id" value="{{ statement.id }}">{% endif %}
+                    {% if focus_id %}<input type="hidden" name="focus" value="{{ focus_id }}">{% endif %}
+                    <button type="submit" class="btn btn-sm btn-link text-danger px-1" title="Delete">Delete</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+{% if statement %}
+<div class="cc-sticky-progress" id="ccStickyProgress" aria-hidden="true">
+    <div class="cc-sticky-copy">
+        <strong>{{ pct }}%</strong>
+        <span>{{ complete }}/{{ total }} complete</span>
+    </div>
+    <div class="cc-sticky-track" aria-hidden="true"><span style="width:{{ pct }}%"></span></div>
+    {# In one-at-a-time this bar IS the "move on" control: it appears exactly
+       when the focus nav above has scrolled away, so no extra chrome is needed
+       at the bottom of the card. #}
+    {% if focus_row and (focus_next_missing or focus_next) %}
+    {% set onward = focus_next_missing or focus_next %}
+    <a href="{{ url_for('cc_portal_card', card_id=card.id, statement_id=statement.id, focus=onward.l.id) }}">
+        {{ 'Next missing' if focus_next_missing else 'Next' }} <i class="bi bi-arrow-right"></i></a>
+    {% elif focus_row %}
+    <a href="{{ url_for('cc_portal_card', card_id=card.id, statement_id=statement.id) }}">
+        All transactions <i class="bi bi-list-ul"></i></a>
+    {% elif next_row %}
+    <a href="{{ url_for('cc_portal_card', card_id=card.id, statement_id=statement.id, focus=next_row.l.id) }}"
+       data-next-action="{{ next_row.next_action }}">
+        Continue <i class="bi bi-arrow-down"></i></a>
+    {% elif ready_count %}
+    <a href="#ccReadyStart">Review ready <i class="bi bi-arrow-down"></i></a>
+    {% else %}
+    <span class="cc-sticky-done"><i class="bi bi-check-circle-fill"></i> Caught up</span>
+    {% endif %}
+</div>
+{% endif %}
+
+{% if not statement %}
+<div class="portal-card"><p class="mb-0 portal-sub"><i class="bi bi-hourglass-split me-1"></i>No transactions loaded for your card yet — check back once finance uploads them. Anything you drop off above will be waiting to match.</p></div>
+{% else %}
+
+{% if submitted_at %}
+<div class="portal-card cc-lock-banner">
+    <i class="bi bi-send-check"></i>
+    <div><strong>Month sent to finance.</strong>
+        <div class="portal-sub">Marked sent on {{ submitted_at[:16] }}. You can still add or correct anything below.</div></div>
+</div>
+{% endif %}
+{# Compact receipt uploader: expands only when the cardholder needs it. Skipped
+   in one-at-a-time — the focused transaction has its own "+ Add" tile, and a
+   month-wide uploader there just pushes the transaction down the page. #}
+{% if not focus_row %}
+<form method="post" action="{{ url_for('cc_portal_upload', card_id=card.id) }}"
+      enctype="multipart/form-data" class="portal-card cc-dropzone" id="ccDrop">
+    <input type="hidden" name="statement_id" value="{{ statement.id }}">
+    <input class="cc-file-input" id="ccFile" type="file" name="receipts"
+           accept="image/*,.pdf,.heic,.heif" multiple required hidden>
+    {# Phone-only: a second input that opens the camera straight away. Kept
+       separate from the picker above so choosing an existing photo still works
+       on Android (a forced `capture` there hides the gallery). #}
+    <input class="cc-file-input cc-cam-input" id="ccCamera" type="file" name="receipts"
+           accept="image/*" capture="environment" hidden>
+    <button type="button" class="cc-upload-toggle" id="ccUploadToggle"
+            aria-expanded="false" aria-controls="ccUploadPanel">
+        <span class="cc-upload-toggle-icon"><i class="bi bi-cloud-arrow-up"></i></span>
+        <span><strong>Add receipts</strong><small>Upload photos or PDFs — we’ll suggest likely matches</small></span>
+        <span class="cc-upload-toggle-action">Choose files <i class="bi bi-chevron-down"></i></span>
+    </button>
+    <div class="cc-upload-panel" id="ccUploadPanel" hidden>
+        <div class="cc-dz-inner" id="ccDzInner" role="button" tabindex="0"
+             aria-label="Add receipts — drag files here or tap to browse">
+            <div class="cc-dz-icon"><i class="bi bi-cloud-arrow-up"></i></div>
+            <div class="cc-dz-title">Drag receipts here, or <span class="cc-dz-link">tap to browse</span></div>
+            <div class="cc-dz-hint">Photos or PDFs · multiple files welcome · 15 MB per file</div>
+        </div>
+        <button type="button" class="btn btn-primary cc-cam-btn cc-dz-cam" data-cam="ccCamera">
+            <i class="bi bi-camera-fill me-1"></i>Take a photo</button>
+    </div>
+    <div class="cc-dz-tray" id="ccDzTray" hidden>
+        <span class="cc-dz-count" id="ccDzCount"></span>
+        <button type="submit" class="btn btn-primary cc-dz-go" id="ccDzGo"><i class="bi bi-upload me-1"></i>Upload</button>
+        <button type="button" class="btn btn-link cc-dz-clear" id="ccDzClear">Clear</button>
+    </div>
+    <div class="cc-upload-bar" id="ccUploadBar" hidden aria-live="polite">
+        <div class="cc-upload-track"><div class="cc-upload-fill" id="ccUploadFill"></div></div>
+        <span class="cc-upload-pct" id="ccUploadPct">Uploading… 0%</span>
+    </div>
+</form>
+{% endif %}
+
+{% if display_suggestions %}
+<section class="portal-card cc-suggestions" aria-labelledby="ccSuggestionTitle">
+    <div class="cc-suggestion-head">
+        <span class="cc-suggestion-icon"><i class="bi bi-stars"></i></span>
+        <div><strong id="ccSuggestionTitle">Suggested receipt matches</strong>
+            <div class="portal-sub">Please confirm each match before it counts as complete.</div></div>
+        <span class="cc-sec-count">{{ display_suggestions|length }}</span>
+    </div>
+    <div class="cc-suggestion-list">
+        {% for sg in display_suggestions %}
+        <article class="cc-suggestion">
+            <div class="cc-suggestion-file">
+                <a href="{{ url_for('cc_portal_file', receipt_id=sg.receipt_id) }}" target="_blank">
+                    <i class="bi bi-receipt"></i> {{ sg.original_filename or 'Receipt' }}</a>
+                <small>Read as {{ sg.ai_vendor or 'merchant unknown' }}{% if sg.ai_date %} · {{ sg.ai_date }}{% endif %}{% if sg.ai_total_cents is not none %} · R {{ "%.2f"|format((sg.ai_total_cents|abs)/100) }}{% endif %}</small>
+            </div>
+            <i class="bi bi-arrow-right cc-suggestion-arrow" aria-hidden="true"></i>
+            <div class="cc-suggestion-line">
+                <strong>{{ sg.line_reference }}</strong>
+                <small>{{ sg.line_date or 'No date' }} · R {{ "%.2f"|format((sg.amount_cents|abs)/100) }}</small>
+            </div>
+            <div class="cc-suggestion-actions">
+                <form method="post" action="{{ url_for('cc_portal_confirm_suggestion', card_id=card.id, suggestion_id=sg.id) }}">
+                    {% if focus_id %}<input type="hidden" name="focus" value="{{ focus_id }}">{% endif %}
+                    <button class="btn btn-sm btn-success"><i class="bi bi-check-lg"></i> Confirm</button>
+                </form>
+                <form method="post" action="{{ url_for('cc_portal_reject_suggestion', card_id=card.id, suggestion_id=sg.id) }}">
+                    {% if focus_id %}<input type="hidden" name="focus" value="{{ focus_id }}">{% endif %}
+                    <button class="btn btn-sm btn-outline-secondary">Not a match</button>
+                </form>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+{# Filter bar — list view only. There is nothing to filter when the page is
+   showing a single transaction. #}
+{% if not focus_row %}
+<div class="portal-card cc-filters">
+    <div class="cc-filter-main">
+    <form method="get" class="cc-filter-period">
+        <label class="cc-flabel">Period</label>
+        <select name="statement_id" class="form-select form-select-sm cc-input" data-submit-on-change>
+            {# The "· N to do" suffix is how a cardholder discovers that an older
+               month still owes work without having to open each one. #}
+            {% for s in statements %}
+            {% set todo = outstanding_by_statement.get(s.id) %}
+            <option value="{{ s.id }}" {% if s.id == statement.id %}selected{% endif %}>
+                {{ ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][s.month] }} {{ s.year }}{% if todo %} · {{ todo }} to do{% endif %}
+            </option>
+            {% endfor %}
+        </select>
+    </form>
+    {# Search, status chips and dates all live behind one button. The month
+       select stays out here — it is navigation between statements, not a
+       filter, and it is how an older month with work gets found. #}
+    <button type="button" class="cc-more-filter" id="ccMoreFilters" aria-expanded="false" aria-controls="ccFilterPanel">
+        <i class="bi bi-sliders"></i> Filter
+        <span class="cc-filter-active" id="ccFilterActive" hidden></span></button>
+    </div>
+    <div class="cc-filter-panel" id="ccFilterPanel" hidden>
+    <div class="cc-filter-grp cc-grow">
+        <label class="cc-flabel">Search</label>
+        <input type="text" id="fSearch" class="form-control form-control-sm cc-input" placeholder="merchant…">
+    </div>
+    <div class="cc-quick-filters" aria-label="Transaction status filters">
+        <button type="button" class="cc-filter-chip active" data-filter="all">All <span>{{ total }}</span></button>
+        <button type="button" class="cc-filter-chip" data-filter="receipt">Needs receipt</button>
+        <button type="button" class="cc-filter-chip" data-filter="reason">Needs reason</button>
+        <button type="button" class="cc-filter-chip" data-filter="location">Needs location</button>
+        {% if vat_invoice_request_count %}
+        <button type="button" class="cc-filter-chip" data-filter="vat">VAT invoice <span>{{ vat_invoice_request_count }}</span></button>
+        {% endif %}
+        <button type="button" class="cc-filter-chip" data-filter="ai">AI review</button>
+        <button type="button" class="cc-filter-chip" data-filter="ready">Ready <span>{{ ready_count }}</span></button>
+        <button type="button" class="cc-filter-chip" data-filter="personal">Personal</button>
+        <button type="button" class="cc-filter-chip" data-filter="submitted">Submitted</button>
+    </div>
+    <div class="cc-date-filters">
+        <div class="cc-filter-grp">
+            <label class="cc-flabel">From</label>
+            <input type="date" id="fFrom" class="form-control form-control-sm cc-input"
+                   min="{{ statement.period_start }}" max="{{ statement.period_end }}">
+        </div>
+        <div class="cc-filter-grp">
+            <label class="cc-flabel">To</label>
+            <input type="date" id="fTo" class="form-control form-control-sm cc-input"
+                   min="{{ statement.period_start }}" max="{{ statement.period_end }}">
+        </div>
+        <button type="button" class="cc-clear-dates" id="ccClearDates">Clear dates</button>
+    </div>
+    </div>
+</div>
+{% endif %}
+
+{% if focus_row %}
+<nav class="portal-card cc-focus-nav" aria-label="Focused transaction navigation">
+    {# No "Focus mode" kicker or explainer line: the view switch above already
+       says "One at a time", and both cost vertical space on the one screen
+       that is supposed to hold a single transaction. #}
+    <div class="cc-focus-heading">
+        <strong>Transaction {{ focus_position }} of {{ total }}</strong>
+    </div>
+    <div class="cc-focus-actions">
+        <a class="btn btn-sm btn-outline-secondary"
+           href="{{ url_for('cc_portal_card', card_id=card.id, statement_id=statement.id) }}">
+            <i class="bi bi-list-ul"></i> All transactions</a>
+        {% if focus_prev %}
+        <a class="btn btn-sm btn-outline-secondary"
+           href="{{ url_for('cc_portal_card', card_id=card.id, statement_id=statement.id, focus=focus_prev.l.id) }}">
+            <i class="bi bi-arrow-left"></i> Previous</a>
+        {% endif %}
+        {% if focus_next %}
+        <a class="btn btn-sm btn-outline-secondary"
+           href="{{ url_for('cc_portal_card', card_id=card.id, statement_id=statement.id, focus=focus_next.l.id) }}">
+            Next <i class="bi bi-arrow-right"></i></a>
+        {% endif %}
+        {% if focus_next_missing %}
+        <a class="btn btn-sm btn-primary"
+           href="{{ url_for('cc_portal_card', card_id=card.id, statement_id=statement.id, focus=focus_next_missing.l.id) }}">
+            Next missing <i class="bi bi-skip-forward"></i></a>
+        {% endif %}
+    </div>
+</nav>
+{% endif %}
+
+<!-- Transactions -->
+<div class="portal-card{% if focus_row %} cc-focus-mode{% endif %}">
+    {# In one-at-a-time the focus nav directly above already says which month and
+       which transaction this is, so both section headers would just repeat it. #}
+    {% if not focus_row %}
+    <div class="cc-sec-title">Transactions — {{ ['','January','February','March','April','May','June','July','August','September','October','November','December'][statement.month] }} {{ statement.year }}</div>
+    {% endif %}
+
+    {% if not rows %}
+    <p class="portal-sub mb-0">Nothing outstanding for this month.</p>
+    {% else %}
+    {% if not locked %}
+    <div class="cc-bulkbar" id="ccBulkBar"
+         data-action="{{ url_for('cc_portal_submit_lines', card_id=card.id) }}"
+         data-sid="{{ statement.id }}" hidden>
+        <span class="cc-bulk-count" id="ccBulkCount">0 selected</span>
+        <button type="button" class="cc-bulk-clear" id="ccBulkClear">Clear</button>
+        <button type="button" class="btn btn-sm btn-success cc-bulk-submit" id="ccBulkSubmit" disabled>
+            <i class="bi bi-send-check me-1"></i>Submit selected</button>
+    </div>
+    {% endif %}
+    {% if not focus_row %}
+    <div class="cc-sec-head" id="ccReadyStart">
+        <strong>Needs attention</strong><span class="cc-sec-count" id="ccTodoCount"></span>
+        <button type="button" class="cc-expand-all" id="ccExpandAll" aria-expanded="false" hidden>
+            <i class="bi bi-arrows-expand"></i><span>Expand all</span></button>
+        {% if not locked and ready_count %}
+        <button type="button" class="cc-select-ready" id="ccSelectReady">
+            <i class="bi bi-check2-square"></i> Select ready <span>{{ ready_count }}</span></button>
+        {% endif %}
+    </div>
+    {% endif %}
+    <div id="ccTodo" data-focus-mode="{{ 'y' if focus_row else 'n' }}">
+        {% for row in display_rows %}
+        {% set l = row.l %}
+        {% set has_reason = (l.reason or '').strip() %}
+        {% set done = row.handled and has_reason %}
+        {% set linked_ids = row.receipts|map(attribute='id')|list %}
+        {# Hoisted out of the attach panel: the receipt gallery needs to know
+           whether there is anything to link before it offers a Link tile. #}
+        {% set bucket_ids = bucket|map(attribute='id')|list %}
+        {% set link_free = bucket %}
+        {% set link_elsewhere = all_receipts|rejectattr('id','in',bucket_ids)|rejectattr('id','in',linked_ids)|list %}
+        {# In list view every row starts collapsed to a single scannable line —
+           25 always-open cards was a 16 000px page on a phone. Focus mode shows
+           the one transaction open. `html.cc-jsfail` re-opens everything. #}
+        <div class="cc-txn cc-row{% if not focus_row %} cc-collapsible is-collapsed{% endif %}" id="txn-{{ l.id }}"
+             data-line-id="{{ l.id }}"
+             data-date="{{ l.line_date }}" data-merchant="{{ l.reference|lower }}"
+             data-receipt="{{ 'y' if row.handled else 'n' }}" data-reason="{{ 'y' if has_reason else 'n' }}"
+             data-location="{{ 'y' if row.has_location else 'n' }}"
+             data-ai="{{ 'pending' if row.pending_ai else 'clear' }}"
+             data-vat="{{ 'requested' if l.vat_invoice_required else 'clear' }}"
+             data-personal="{{ 'y' if row.personal else 'n' }}"
+             data-ready="{{ 'y' if row.ready else 'n' }}"
+             data-submitted="{{ 'y' if row.submitted else 'n' }}">
+            {% if not locked %}
+            <div class="cc-drop-cue" aria-hidden="true">
+                <i class="bi bi-paperclip"></i>
+                <span><strong>Drop receipt on this transaction</strong>
+                    <small>{{ l.line_date|shortdate or '—' }} · {{ l.reference }} · R {{ ((l.amount_cents|abs)/100)|rands }}</small></span>
+            </div>
+            {% endif %}
+            <div class="cc-txn-top">
+                {% if not locked and not row.submitted %}
+                <label class="cc-sel-wrap" title="Select to submit" {% if not row.ready %}hidden{% endif %}>
+                    <input type="checkbox" class="cc-sel" value="{{ l.id }}" {% if not row.ready %}disabled{% endif %}>
+                </label>
+                {% endif %}
+                <div class="cc-txn-info">
+                    <span class="cc-txn-date">{{ l.line_date|shortdate or '—' }}</span>
+                    <span class="cc-txn-merchant">{{ l.reference }}</span>
+                    {% if l.require_individual %}<span class="cc-chip cc-chip-req">receipt required</span>{% endif %}
+                </div>
+                <div class="cc-txn-amt cc-amt">R {{ ((l.amount_cents|abs)/100)|rands }}</div>
+                {% if not focus_row %}
+                <button type="button" class="cc-txn-toggle" aria-expanded="false"
+                        aria-controls="body-{{ l.id }}"
+                        aria-label="Show details for {{ l.reference }}">
+                    <i class="bi bi-chevron-down"></i></button>
+                {% endif %}
+            </div>
+            {# One status line, not four. `missing` is the same list the "Continue
+               next task" button is built from, so the row and the button can never
+               disagree about what is outstanding. paintChip() mirrors this exactly. #}
+            {% set MISS_LABEL = {'receipt': 'receipt', 'reason': 'reason',
+                                 'location': 'location', 'ai': 'AI match'} %}
+            {% set miss = row.missing|reject('equalto', 'vat_invoice')|list %}
+            <div class="cc-status">
+                {# Own class (not cc-status-chip) so the live-sectioning paintChip() never overwrites it. #}
+                {% if row.submitted %}<span class="cc-sub-chip"><i class="bi bi-send-check"></i> Submitted</span>{% endif %}
+                {% if l.vat_invoice_required %}<span class="cc-status-chip is-vat"><i class="bi bi-file-earmark-text"></i> VAT tax invoice requested</span>
+                {% elif not miss %}<span class="cc-status-chip {{ 'is-personal' if row.personal else 'is-done' }}"><i class="bi {{ 'bi-person-check' if row.personal else 'bi-check-lg' }}"></i> {{ 'Personal · ready' if row.personal else 'Complete' }}</span>
+                {% else %}<span class="cc-status-chip is-todo"><i class="bi {{ 'bi-list-check' if row.personal else 'bi-exclamation-circle' }}"></i> Needs {% for m in miss %}{{ MISS_LABEL[m] }}{{ ' · ' if not loop.last }}{% endfor %}</span>{% endif %}
+            </div>
+            {% if row.ai_state != 'not_matched' %}
+            <div class="cc-ai-line-state is-{{ row.ai_state|replace('_', '-') }}">
+                <i class="bi bi-stars"></i>
+                {% if row.ai_state == 'confirmed' %}AI-proposed match confirmed
+                {% elif row.ai_state == 'suggested' %}Suggested match — please confirm
+                {% elif row.ai_state == 'rejected' %}AI match rejected — link manually if needed
+                {% elif row.ai_state == 'manual' %}Receipt linked manually{% endif %}
+            </div>
+            {% endif %}
+            <div class="cc-txn-body" id="body-{{ l.id }}">
+            {% if l.vat_invoice_required %}
+            <div class="cc-vat-request" role="note">
+                <i class="bi bi-file-earmark-text"></i>
+                <div>
+                    <strong>Finance needs a VAT tax invoice for this transaction</strong>
+                    <p>Please ask the supplier for a tax invoice made out to Northwind Apparel and showing the company VAT number, then upload the replacement invoice directly to this transaction.</p>
+                    <small>Finance will clear this request after checking the uploaded invoice.</small>
+                </div>
+            </div>
+            {% endif %}
+
+            {# Wrapper exists so a wide screen can put the two text fields beside
+               the receipt gallery instead of stacking everything one column deep. #}
+            <div class="cc-txn-fields">
+            <!-- Reason (auto-saves on blur) -->
+            <form method="post" action="{{ url_for('cc_portal_reason', card_id=card.id) }}"
+                  class="cc-reason {% if not has_reason %}is-missing{% endif %}" data-autosave>
+                <input type="hidden" name="statement_id" value="{{ statement.id }}">
+                <input type="hidden" name="line_id" value="{{ l.id }}">
+                {% if focus_id %}<input type="hidden" name="focus" value="{{ focus_id }}">{% endif %}
+                <label class="cc-field-label">
+                    <i class="bi bi-chat-left-text"></i> Reason
+                    <span class="cc-need" {% if has_reason %}hidden{% endif %}>needed</span>
+                    <span class="cc-save-status" role="status" aria-live="polite"></span>
+                </label>
+                <input type="text" name="reason" class="form-control form-control-sm cc-reason-input" maxlength="200"
+                       autocomplete="off"
+                       value="{{ l.reason or '' }}" {% if locked %}readonly{% endif %}
+                       {# Short enough to survive a 375px field: the label already
+                          asks the question, so the placeholder just shows a good answer. #}
+                       placeholder="e.g. Stock for store display">
+            </form>
+
+            <!-- Location — searchable multi-select; auto-saves. Value is stored as a
+                 comma-joined string in cc_lines.location. -->
+            <form method="post" action="{{ url_for('cc_portal_location', card_id=card.id) }}"
+                  class="cc-location cc-locpick{% if not row.has_location %} is-missing{% endif %}" data-autosave-loc
+                  data-options='{{ cc_locations|map(attribute="name")|list|tojson }}'>
+                <input type="hidden" name="statement_id" value="{{ statement.id }}">
+                <input type="hidden" name="line_id" value="{{ l.id }}">
+                {% if focus_id %}<input type="hidden" name="focus" value="{{ focus_id }}">{% endif %}
+                <input type="hidden" name="location" class="cc-loc-value" value="{{ l.location or '' }}">
+                <label class="cc-field-label">
+                    <i class="bi bi-geo-alt"></i> Location
+                    <span class="cc-field-help">— pick one or more</span>
+                    <span class="cc-need" {% if row.has_location %}hidden{% endif %}>needed</span>
+                    <span class="cc-save-status" role="status" aria-live="polite"></span>
+                </label>
+                <div class="cc-loc-control{% if locked %} is-locked{% endif %}">
+                    <div class="cc-loc-box">
+                        <input type="text" class="cc-loc-search" autocomplete="off" role="combobox"
+                               aria-autocomplete="list" aria-expanded="false"
+                               aria-controls="ccLocMenu{{ l.id }}" aria-activedescendant=""
+                               placeholder="Search locations…" {% if locked %}disabled{% endif %}>
+                    </div>
+                    <div class="cc-loc-menu" id="ccLocMenu{{ l.id }}" role="listbox" hidden></div>
+                </div>
+                {% if not row.has_location and row.field_suggestions.location %}
+                <button type="button" class="cc-field-suggestion"
+                        data-apply-location="{{ row.field_suggestions.location }}">
+                    Use previous: <span>{{ row.field_suggestions.location }}</span></button>
+                {% endif %}
+            </form>
+            </div>
+
+            <!-- Receipts -->
+            <div class="cc-receipts-block">
+                <span class="cc-field-label"><i class="bi bi-paperclip"></i> Receipts</span>
+                <div class="cc-receipt-gallery">
+                    {% for r in row.receipts %}
+                    {% set is_img = (r.file_path or '').rsplit('.', 1)[-1]|lower in browser_image_exts %}
+                    <div class="cc-rcpt-tile">
+                        <a class="cc-rcpt-thumb" href="{{ url_for('cc_portal_file', receipt_id=r.id) }}" target="_blank"
+                           title="{{ r.original_filename }}"
+                           {% if is_img %}data-preview-src="{{ url_for('cc_portal_file', receipt_id=r.id) }}" data-name="{{ r.original_filename }}"{% endif %}>
+                            {% if is_img %}
+                            <img src="{{ url_for('cc_portal_file', receipt_id=r.id) }}" alt="Receipt for {{ l.reference }}" loading="lazy">
+                            {% else %}
+                            <span class="cc-rcpt-fileicon"><i class="bi bi-file-earmark-text"></i>{# Was hardcoded "PDF". Anything non-renderable lands here, so a legacy .heic row was labelled PDF. Show what it actually is. #}<span class="cc-rcpt-ext">{{ ((r.file_path or '').rsplit('.', 1)[-1]|upper)[:4] or 'FILE' }}</span></span>
+                            {% endif %}
+                        </a>
+                        <div class="cc-rcpt-cap">
+                            <span class="cc-rcpt-name" title="{{ r.original_filename }}">{{ r.original_filename or 'file' }}</span>
+                            {% if not locked %}
+                            <form method="post" action="{{ url_for('cc_portal_unlink', card_id=card.id) }}">
+                                <input type="hidden" name="statement_id" value="{{ statement.id }}">
+                                <input type="hidden" name="receipt_id" value="{{ r.id }}">
+                                <input type="hidden" name="line_id" value="{{ l.id }}">
+                                {% if focus_id %}<input type="hidden" name="focus" value="{{ focus_id }}">{% endif %}
+                                <button class="cc-x cc-x-sm" title="Detach from this transaction">&times;</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% if not locked %}
+                    {# Camera first on a phone: the cardholder is usually standing
+                       at the till with the slip in hand, so "photograph it" is the
+                       whole job. Hidden on desktop (nothing to capture to), where
+                       the file picker below is the only sensible route. #}
+                    <button type="button" class="cc-rcpt-cam" data-cam="cam-{{ l.id }}"
+                            aria-label="Take a photo of the receipt for {{ l.reference }}">
+                        <i class="bi bi-camera-fill"></i><span>Take photo</span></button>
+                    {# Opens the file picker straight away, the same one-tap shape
+                       the camera tile has. It used to unfold a panel containing a
+                       raw <input type=file> and a second Upload button — three taps
+                       and the only unstyled control in the portal. Without JS the
+                       data-target panel below is still what it toggles. #}
+                    <button type="button" class="cc-rcpt-add" data-pick="pick-{{ l.id }}"
+                            data-target="att-{{ l.id }}"
+                            aria-label="Choose a receipt file for {{ l.reference }}">
+                        <i class="bi bi-plus-lg"></i><span>Add file</span></button>
+                    {% if link_free or link_elsewhere %}
+                    <button type="button" class="cc-rcpt-link" data-target="att-{{ l.id }}"
+                            aria-label="Link a receipt you have already uploaded to {{ l.reference }}">
+                        <i class="bi bi-link-45deg"></i><span>Link a file you've already uploaded</span></button>
+                    {% endif %}
+                    {% endif %}
+                    {% if not row.receipts and (row.personal or locked) %}
+                    <span class="cc-rcpt-empty">{{ 'Not needed — personal' if row.personal else 'No receipt attached' }}</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if not locked %}
+            <div class="cc-txn-foot">
+                <form method="post" action="{{ url_for('cc_portal_personal', card_id=card.id) }}">
+                    <input type="hidden" name="statement_id" value="{{ statement.id }}">
+                    <input type="hidden" name="line_id" value="{{ l.id }}">
+                    {% if focus_id %}<input type="hidden" name="focus" value="{{ focus_id }}">{% endif %}
+                    <button class="cc-personal-btn {% if row.personal %}on{% endif %}">
+                        <i class="bi {{ 'bi-person-check-fill' if row.personal else 'bi-person' }}"></i>
+                        {{ 'Personal — I’ll repay this' if row.personal else 'Mark as personal' }}</button>
+                </form>
+                {% if row.submitted %}
+                <span class="cc-submitted-note"><i class="bi bi-check-circle-fill"></i> Submitted to finance</span>
+                <form method="post" action="{{ url_for('cc_portal_submit_lines', card_id=card.id) }}" class="cc-submit-form">
+                    <input type="hidden" name="statement_id" value="{{ statement.id }}">
+                    <input type="hidden" name="line_id" value="{{ l.id }}">
+                    {% if focus_id %}<input type="hidden" name="focus" value="{{ focus_id }}">{% endif %}
+                    <input type="hidden" name="undo" value="1">
+                    <button type="submit" class="cc-undo-btn"><i class="bi bi-arrow-counterclockwise"></i> Undo</button>
+                </form>
+                {% else %}
+                <form method="post" action="{{ url_for('cc_portal_submit_lines', card_id=card.id) }}"
+                      class="cc-submit-form cc-ready-submit" {% if not row.ready %}hidden{% endif %}>
+                    <input type="hidden" name="statement_id" value="{{ statement.id }}">
+                    <input type="hidden" name="line_id" value="{{ l.id }}">
+                    {% if focus_id %}<input type="hidden" name="focus" value="{{ focus_id }}">{% endif %}
+                    <button type="submit" class="btn btn-sm btn-success cc-submit-btn"><i class="bi bi-send-check me-1"></i>Submit</button>
+                </form>
+                {# No "Add reason"/"Add location"/"Add receipt" buttons here: the
+                   row is open, so all three fields are already on screen and a
+                   button that only scrolls to a visible input is noise. #}
+                {% endif %}
+            </div>
+
+            <div class="cc-attach-row" id="att-{{ l.id }}" hidden>
+                <div class="cc-attach-panel">
+                    <div class="cc-attach-hint cc-attach-hint-nojs">Upload a new file, or link one you've already added — a receipt can cover several transactions.</div>
+                    <div class="cc-attach-hint cc-attach-hint-js">Link a file you've already uploaded — one receipt can cover several transactions.</div>
+                    <form method="post"
+                          action="{{ url_for('cc_portal_upload_to_line', card_id=card.id, statement_id=statement.id, line_id=l.id) }}"
+                          enctype="multipart/form-data" class="cc-attach-form">
+                        <input type="hidden" name="upload_token" value="{{ row.upload_token }}">
+                        {% if focus_id %}<input type="hidden" name="focus" value="{{ focus_id }}">{% endif %}
+                        {# id + class: the gallery's "Add file" tile opens this picker
+                           directly and the change handler submits it, so with JS the
+                           control itself never has to be looked at. #}
+                        <input type="file" id="pick-{{ l.id }}" name="receipts"
+                               accept="image/*,.pdf,.heic,.heif"
+                               class="form-control form-control-sm cc-pick-input" multiple>
+                        <button class="btn btn-sm btn-primary"><i class="bi bi-upload"></i> Upload here</button>
+                        {# Phone-only: snap a photo straight onto THIS transaction. #}
+                        <input type="file" name="receipts" accept="image/*" capture="environment"
+                               id="cam-{{ l.id }}" class="cc-cam-input" hidden>
+                        <button type="button" class="btn btn-sm btn-outline-primary cc-cam-btn" data-cam="cam-{{ l.id }}">
+                            <i class="bi bi-camera-fill"></i> Take photo</button>
+                        <span class="cc-attach-status" role="status" aria-live="polite"></span>
+                    </form>
+                    {# Files not linked to ANY transaction (the bucket) are offered
+                       first; files already on another transaction are tucked behind
+                       an expand toggle for the multi-charge-invoice case.
+                       link_free / link_elsewhere are computed once at the top of the
+                       row, because the gallery's Link tile needs them too. #}
+                    {% if link_free or link_elsewhere %}
+                    <div class="cc-attach-or">or link a file you've already uploaded</div>
+                    <form method="post" action="{{ url_for('cc_portal_link', card_id=card.id) }}" class="cc-filepick" data-filepick>
+                        <input type="hidden" name="statement_id" value="{{ statement.id }}">
+                        <input type="hidden" name="line_id" value="{{ l.id }}">
+                        {% if focus_id %}<input type="hidden" name="focus" value="{{ focus_id }}">{% endif %}
+                        <button type="button" class="cc-filepick-trigger" aria-haspopup="true" aria-expanded="false">
+                            <span class="cc-filepick-trigger-lbl"><i class="bi bi-link-45deg"></i> Link an existing file…</span>
+                            <i class="bi bi-chevron-down cc-filepick-caret"></i>
+                        </button>
+                        <div class="cc-filepick-menu">
+                            {% if link_free %}
+                            {% for b in link_free %}
+                            {% set is_img = (b.file_path or '').rsplit('.', 1)[-1]|lower in browser_image_exts %}
+                            <button type="submit" name="receipt_id" value="{{ b.id }}" class="cc-filepick-opt">
+                                <span class="cc-filepick-thumb">
+                                    {% if is_img %}<img src="{{ url_for('cc_portal_file', receipt_id=b.id) }}" alt="" loading="lazy">
+                                    {% else %}<i class="bi bi-file-earmark-text"></i>{% endif %}
+                                </span>
+                                <span class="cc-filepick-name">{{ b.original_filename or 'file' }}</span>
+                                <i class="bi bi-plus-lg cc-filepick-plus"></i>
+                            </button>
+                            {% endfor %}
+                            {% else %}
+                            <div class="cc-filepick-empty">Everything you've uploaded is already linked. Upload a new file above.</div>
+                            {% endif %}
+                            {% if link_elsewhere %}
+                            <button type="button" class="cc-filepick-more-toggle" aria-expanded="false">
+                                <i class="bi bi-chevron-right cc-filepick-more-caret"></i>
+                                <span>Files already on another transaction ({{ link_elsewhere|length }})</span>
+                            </button>
+                            <div class="cc-filepick-more">
+                                {% for b in link_elsewhere %}
+                                {% set is_img = (b.file_path or '').rsplit('.', 1)[-1]|lower in browser_image_exts %}
+                                <button type="submit" name="receipt_id" value="{{ b.id }}" class="cc-filepick-opt is-elsewhere">
+                                    <span class="cc-filepick-thumb">
+                                        {% if is_img %}<img src="{{ url_for('cc_portal_file', receipt_id=b.id) }}" alt="" loading="lazy">
+                                        {% else %}<i class="bi bi-file-earmark-text"></i>{% endif %}
+                                    </span>
+                                    <span class="cc-filepick-name">{{ b.original_filename or 'file' }}
+                                        <span class="cc-filepick-sub">also on another transaction</span></span>
+                                    <i class="bi bi-plus-lg cc-filepick-plus"></i>
+                                </button>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    <p class="portal-sub cc-todo-empty" id="ccTodoEmpty" hidden><i class="bi bi-check-circle"></i> All caught up — nothing outstanding here.</p>
+
+    <div class="cc-done-head" id="ccDoneHead" hidden role="button" tabindex="0" aria-expanded="false">
+        <i class="bi bi-chevron-right cc-done-caret"></i>
+        <strong>Completed</strong>
+        <span class="cc-done-count" id="ccDoneCount"></span>
+        <span class="cc-done-hint">still editable — tap to view</span>
+    </div>
+    <div id="ccDone" hidden></div>
+    {% endif %}
+</div>
+
+{# Unmatched files (review / link) — list view only. In one-at-a-time the
+   focused transaction's own "link an existing file" picker covers this. #}
+{% if not focus_row %}
+<div class="portal-card">
+    <div class="d-flex justify-content-between align-items-center mb-1">
+        <strong>Unmatched files</strong>
+        <span class="badge bg-secondary">{{ bucket|length }}</span>
+    </div>
+    {% if not bucket %}
+    <p class="portal-sub mb-0">Nothing waiting — everything's matched or empty.</p>
+    {% else %}
+    <ul class="cc-bucket">
+        {% for r in bucket %}
+        {% set is_img = (r.file_path or '').rsplit('.', 1)[-1]|lower in browser_image_exts %}
+        <li class="cc-bucket-item">
+            <div class="cc-bucket-row">
+                <a href="{{ url_for('cc_portal_file', receipt_id=r.id) }}" target="_blank" class="cc-bucket-name"
+                   {% if is_img %}data-preview-src="{{ url_for('cc_portal_file', receipt_id=r.id) }}" data-name="{{ r.original_filename }}"{% endif %}>
+                    <i class="bi {{ 'bi-image me-1' if is_img else 'bi-paperclip me-1' }}"></i>{{ r.original_filename or 'receipt' }}</a>
+                {% if not locked %}
+                <span class="cc-bucket-actions">
+                    {% if rows %}
+                    <button type="button" class="cc-link-toggle" data-target="lk-{{ r.id }}">
+                        <i class="bi bi-link-45deg"></i> Link</button>
+                    {% endif %}
+                    <form method="post" action="{{ url_for('cc_portal_delete_receipt', receipt_id=r.id) }}" class="d-inline">
+                        <input type="hidden" name="statement_id" value="{{ statement.id }}">
+                        {% if focus_id %}<input type="hidden" name="focus" value="{{ focus_id }}">{% endif %}
+                        <button class="cc-x" title="Remove" onclick="return confirm('Remove this file?');">&times;</button>
+                    </form>
+                </span>
+                {% endif %}
+            </div>
+            {% if not locked and rows %}
+            <div class="cc-linkpanel" id="lk-{{ r.id }}" hidden>
+                <div class="cc-linkpanel-head">
+                    <span class="portal-sub">Tick the transaction(s) this file covers</span>
+                    <input type="text" class="form-control form-control-sm cc-link-search" placeholder="filter…">
+                </div>
+                <form method="post" action="{{ url_for('cc_portal_link', card_id=card.id) }}">
+                    <input type="hidden" name="statement_id" value="{{ statement.id }}">
+                    <input type="hidden" name="receipt_id" value="{{ r.id }}">
+                    {% if focus_id %}<input type="hidden" name="focus" value="{{ focus_id }}">{% endif %}
+                    {# Transactions still needing a receipt come first; ones that
+                       already have one hide behind an expand (a file can still be
+                       added to them for the multi-receipt case). #}
+                    {% set pick_todo = rows|rejectattr('receipts')|list %}
+                    {% set pick_have = rows|selectattr('receipts')|list %}
+                    <div class="cc-pick-list">
+                        {% for row in pick_todo %}
+                        <label class="cc-pick" data-merchant="{{ row.l.reference|lower }}">
+                            <input type="checkbox" name="line_id" value="{{ row.l.id }}">
+                            <span class="cc-pick-date">{{ row.l.line_date }}</span>
+                            <span class="cc-pick-merchant">{{ row.l.reference }}</span>
+                            <span class="cc-pick-amt cc-amt">R {{ "%.2f"|format((row.l.amount_cents|abs)/100) }}</span>
+                        </label>
+                        {% endfor %}
+                        {% if not pick_todo %}
+                        <div class="cc-filepick-empty">Every transaction already has a receipt.</div>
+                        {% endif %}
+                        {% if pick_have %}
+                        <button type="button" class="cc-filepick-more-toggle" aria-expanded="false">
+                            <i class="bi bi-chevron-right cc-filepick-more-caret"></i>
+                            <span>Already have a receipt ({{ pick_have|length }})</span>
+                        </button>
+                        <div class="cc-filepick-more">
+                            {% for row in pick_have %}
+                            <label class="cc-pick" data-merchant="{{ row.l.reference|lower }}">
+                                <input type="checkbox" name="line_id" value="{{ row.l.id }}">
+                                <span class="cc-pick-date">{{ row.l.line_date }}</span>
+                                <span class="cc-pick-merchant">{{ row.l.reference }}</span>
+                                <span class="cc-pick-amt cc-amt">R {{ "%.2f"|format((row.l.amount_cents|abs)/100) }}</span>
+                                <span class="cc-pick-has">{{ row.receipts|length }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    <button class="btn btn-sm btn-primary cc-link-go" disabled><i class="bi bi-link-45deg me-1"></i>Link selected</button>
+                </form>
+            </div>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+</div>
+{% endif %}
+
+{% if not locked %}
+<div class="portal-card cc-submit-card">
+    <div>
+        <strong>Done for {{ ['','January','February','March','April','May','June','July','August','September','October','November','December'][statement.month] }}?</strong>
+        <div class="portal-sub">Submit when you've added everything. {% if complete < total %}<span class="text-warning">{{ total - complete }} still incomplete.</span>{% endif %}</div>
+    </div>
+    {% if complete == total %}
+    <form method="post" action="{{ url_for('cc_portal_submit', card_id=card.id) }}"
+          onsubmit="return confirm('Mark this month as sent to finance? You can still make changes afterwards.');">
+        <input type="hidden" name="statement_id" value="{{ statement.id }}">
+        {% if focus_id %}<input type="hidden" name="focus" value="{{ focus_id }}">{% endif %}
+        <button class="btn btn-success"><i class="bi bi-send-check me-1"></i>Mark month sent</button>
+    </form>
+    {% elif next_row %}
+    <a class="btn btn-primary"
+       href="{{ url_for('cc_portal_card', card_id=card.id, statement_id=statement.id, focus=next_row.l.id) }}"
+       data-next-action="{{ next_row.next_action }}">
+        Continue next task</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endif %}
+
+<!-- A drop only stages files. The cardholder confirms the immutable transaction
+     summary before the signed, transaction-scoped upload begins. -->
+<dialog class="cc-drop-confirm" id="ccDropConfirm" aria-labelledby="ccDropConfirmTitle">
+    <form method="dialog" class="cc-drop-confirm-card">
+        <div class="cc-drop-confirm-icon"><i class="bi bi-paperclip"></i></div>
+        <div>
+            <div class="cc-drop-confirm-kicker">Receipt destination</div>
+            <h2 id="ccDropConfirmTitle">Attach to this transaction?</h2>
+        </div>
+        <div class="cc-drop-confirm-target" id="ccDropConfirmTarget"></div>
+        <div class="cc-drop-confirm-files" id="ccDropConfirmFiles"></div>
+        <p class="cc-drop-confirm-note">The files will be attached only to the transaction shown above.</p>
+        <div class="cc-drop-confirm-actions">
+            <button type="submit" value="cancel" class="btn btn-outline-secondary" id="ccDropCancel">Cancel</button>
+            <button type="button" class="btn btn-primary" id="ccDropAttach">
+                <i class="bi bi-paperclip me-1"></i>Attach to this transaction</button>
+        </div>
+    </form>
+</dialog>
+
+<!-- Image preview lightbox -->
+<div class="cc-lightbox" id="ccLightbox" role="dialog" aria-modal="true"
+     aria-labelledby="ccLbName" tabindex="-1" hidden>
+    <div class="cc-lb-bar"><span class="cc-lb-name" id="ccLbName"></span>
+        <button type="button" class="cc-lb-close" id="ccLbClose" aria-label="Close">&times;</button></div>
+    <img class="cc-lb-img" id="ccLbImg" alt="Receipt preview">
+</div>
+
+<script src="{{ url_for('static', filename='cc-portal.js') }}" defer></script>
+{% endblock %}

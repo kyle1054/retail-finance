@@ -1,0 +1,113 @@
+{% extends "portal_base.html" %}
+{% block title %}{{ req.ref }} — NORTHWIND{% endblock %}
+
+{% macro money(x) %}R{{ '{:,.2f}'.format(x or 0)|replace(',', ' ') }}{% endmacro %}
+
+{% block breadcrumb %}
+    <nav class="crumbs">
+        <span class="crumb-left">
+            <a href="{{ url_for('portal_store_employee', emp_id=req.employee_id) }}" title="Back to your deductions">
+                <i class="bi bi-chevron-left"></i> {{ req.employee_name }}
+            </a>
+            <span class="sep">/</span>
+            <span class="current">{{ req.ref }}</span>
+        </span>
+    </nav>
+{% endblock %}
+
+{% block content %}
+    <div class="portal-card">
+        <div class="ded-head">
+            <i class="bi {{ req.icon }}"></i>
+            <span class="ded-cat">{{ req.kind_label }} request · {{ req.ref }}</span>
+            <span class="req-status-slot"><span class="badge-status req-s-{{ req.status }}">{{ req.status_label }}</span></span>
+        </div>
+
+        <ul class="req-item-list">
+            {% for i in req['items'] %}
+            <li>
+                <span class="req-item-name">{{ i.description }}{% if i.size %} · {{ i.size }}{% endif %}{% if i.qty > 1 %} × {{ i.qty }}{% endif %}
+                    {% if i.sku %}<span class="req-item-sku">{{ i.sku }}</span>{% endif %}</span>
+                <span class="req-item-price">{% if i.price is not none %}{{ money(i.total) }}{% else %}price to confirm{% endif %}</span>
+            </li>
+            {% endfor %}
+        </ul>
+
+        <div class="ded-detail">
+            {#- Once there is a plan, its real total is shown below — leaving the
+                original estimate beside it just invites "why is it more?". -#}
+            {% if req.estimated_total is not none and not req.plan %}
+            <div><div class="k">Estimate</div><div class="v">{{ money(req.estimated_total) }}</div></div>
+            {% endif %}
+            {% if req.requested_term_months %}
+            <div><div class="k">Asked for</div><div class="v">{{ req.requested_term_months }} month{{ '' if req.requested_term_months == 1 else 's' }}</div></div>
+            {% endif %}
+            <div><div class="k">Sent</div><div class="v">{{ req.created_at|shortdate }}</div></div>
+        </div>
+
+        {% if req.notes %}<p class="req-note">“{{ req.notes }}”</p>{% endif %}
+
+        {% if req.status == 'fulfilled' %}
+        {#- This is the request page, not the profile — "below" was pointing at
+            nothing, so it links to where the deduction actually shows. The figures
+            are the first thing they want: how much, for how long, from when. -#}
+        <p class="req-outcome is-good">Approved and set up —
+            <a href="{{ url_for('portal_store_employee', emp_id=req.employee_id) }}">it now shows with your deductions</a>.</p>
+        {% if req.plan %}
+        <div class="ded-detail req-plan">
+            <div><div class="k">Off your pay</div><div class="v">{{ money(req.plan.monthly) }}</div></div>
+            <div><div class="k">Every month for</div><div class="v">{{ req.plan.term }} month{{ '' if req.plan.term == 1 else 's' }}</div></div>
+            <div><div class="k">Starting</div><div class="v">{{ req.plan.start_label }}</div></div>
+            <div><div class="k">Total</div><div class="v">{{ money(req.plan.total) }}</div></div>
+        </div>
+        {% endif %}
+        {% elif req.status == 'declined' %}
+        <p class="req-outcome is-bad">Declined{% if req.decline_reason %}: {{ req.decline_reason }}{% endif %}</p>
+        {% elif req.status == 'approved' %}
+        <p class="req-outcome is-good">Approved — the office is getting it for you. Your
+            deduction is set up when the item is handed over, and it will show here.</p>
+        {% elif req.status == 'in_progress' %}
+        <p class="req-outcome">The office is busy with this one.</p>
+        {% elif req.status == 'cancelled' %}
+        <p class="req-outcome">This request was cancelled. Nothing comes off your pay for it.</p>
+        {% elif req.status == 'info_needed' %}
+        <p class="req-outcome is-wait">The office asked you something — reply below.</p>
+        {% endif %}
+    </div>
+
+    <div class="section-label">Messages</div>
+    <div class="portal-card req-thread">
+        {% for e in req['events'] %}
+        <div class="req-event req-event-{{ e.actor_role }}">
+            <div class="req-event-head">
+                <strong>{% if e.actor_role == 'staff' %}{{ req.employee_name }}{% else %}Office{% endif %}</strong>
+                <span class="req-event-at">{{ e.at|shortdate }}</span>
+            </div>
+            {% if e.event == 'comment' %}
+            <div class="req-event-body">{{ e.message }}</div>
+            {% else %}
+            {#- The office's own wording ("Uniform request for X") reads oddly back
+                to the person who sent it, so creation is just "Request sent". -#}
+            <div class="req-event-meta">{{ 'Request sent' if e.event == 'created' else (e.message or e.to_label) }}</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    {% if req.is_open %}
+    <form method="post" action="{{ url_for('portal_request_comment', req_id=req.id) }}" class="portal-card req-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label for="message">Add a message</label>
+        <textarea id="message" name="message" rows="3" maxlength="1000" required
+                  placeholder="Reply to the office"></textarea>
+        <button type="submit" class="req-submit"><i class="bi bi-send"></i> Send</button>
+    </form>
+
+    {% if can_cancel %}
+    <form method="post" action="{{ url_for('portal_request_cancel', req_id=req.id) }}" class="req-cancel-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="req-cancel">I don't need this any more — cancel it</button>
+    </form>
+    {% endif %}
+    {% endif %}
+{% endblock %}

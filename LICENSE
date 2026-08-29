@@ -1,0 +1,46 @@
+LICENCE: NOT YET DETERMINED
+===========================
+
+**This repository has no licence yet, and that is on purpose. Do not treat the
+absence of one as permission.** Until a licence is added here, no rights are
+granted: no copying, no modification, no redistribution, no use in another
+project. Under default copyright law that is the position whether or not this
+file says so — this file exists so that nobody has to guess.
+
+Why it is unresolved
+--------------------
+
+This code was written by the author in the course of employment. Work made in
+that context is very often owned by the employer rather than the author,
+regardless of who typed it, so the author is not currently in a position to
+grant anyone a licence to it. The publication of this build is a portfolio
+demonstration — a scrubbed copy with a fictional company, no real data and no
+internal documents — and publishing it is not a claim of ownership over it.
+
+Resolving this means getting the employer's written position on (a) whether this
+build may remain published, and (b) whether the code may be licensed for reuse,
+and if so under what terms. Until that answer exists in writing, this file
+should stay exactly as it is.
+
+The realistic options, once ownership is settled
+------------------------------------------------
+
+**MIT.** The shortest permissive licence: anyone may use, modify and
+redistribute the code, including commercially, provided the copyright notice and
+licence text travel with it, and the software is provided without warranty.
+
+**Apache-2.0.** Permissive on the same terms as MIT, plus an explicit patent
+grant from contributors, a requirement to state significant changes, and clearer
+handling of trademarks and contributions — the usual choice where a company is
+the copyright holder and wants that extra certainty.
+
+**Source-available, viewing and evaluation only.** A custom grant permitting
+anyone to read the code and evaluate the author's work, while reserving every
+other right — no use, no modification, no redistribution. This is the option if
+the employer is content for the repository to stay public as a portfolio piece
+but does not want its code reused, and it is the likeliest outcome for a
+line-of-business application like this one.
+
+Whichever is chosen, replace this entire file with the licence's exact text, add
+the correct copyright line naming whoever actually owns the copyright, and say
+so in the README.

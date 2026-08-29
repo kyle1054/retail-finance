@@ -1,0 +1,861 @@
+.cc-review-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 2rem;
+    margin: .25rem 0 1.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.cc-review-heading-copy { max-width: 690px; }
+.cc-review-heading-copy h2 {
+    margin: .2rem 0 .55rem;
+    color: var(--text-primary);
+    font-size: clamp(1.35rem, 2vw, 1.8rem);
+    font-weight: 680;
+    letter-spacing: -.035em;
+}
+.cc-review-heading-copy .text-muted { max-width: 64ch; line-height: 1.55; }
+
+.cc-review-heading-actions {
+    display: flex;
+    align-items: flex-start;
+    gap: .6rem;
+    flex: none;
+}
+
+.cc-review-overview-link { color: var(--text-secondary); text-decoration: none; }
+.cc-review-overview-link:hover { color: var(--accent); }
+
+.cc-export-menu {
+    position: relative;
+}
+
+.cc-export-menu > summary {
+    display: flex;
+    align-items: center;
+    min-height: 40px;
+    list-style: none;
+    cursor: pointer;
+}
+
+.cc-export-menu > summary::-webkit-details-marker { display: none; }
+
+.cc-export-menu[open] > summary {
+    box-shadow: 0 0 0 .2rem rgba(38, 92, 66, .16);
+}
+
+.cc-export-menu-panel {
+    position: absolute;
+    z-index: 1040;
+    top: calc(100% + .45rem);
+    right: 0;
+    width: min(390px, 88vw);
+    padding: .85rem;
+    border: 1px solid var(--border-hover);
+    border-radius: 12px;
+    background: var(--bg-elevated);
+    box-shadow: 0 16px 38px rgba(25, 28, 26, .18);
+}
+
+.cc-export-menu-panel > p {
+    margin: 0 0 .65rem;
+    color: var(--text-secondary);
+    font-size: .82rem;
+    line-height: 1.45;
+}
+
+.cc-export-menu-panel form + form { margin-top: .4rem; }
+
+.cc-export-choice {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: .7rem;
+    width: 100%;
+    min-height: 58px;
+    padding: .6rem .7rem;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 160ms ease, background-color 160ms ease;
+}
+
+.cc-export-choice:hover {
+    border-color: var(--accent);
+    background: var(--bg-hover);
+}
+
+.cc-export-choice:focus-visible {
+    outline: 3px solid rgba(38, 92, 66, .25);
+    outline-offset: 2px;
+}
+
+.cc-export-choice > i:first-child {
+    color: var(--accent);
+    font-size: 1.15rem;
+}
+
+.cc-export-choice strong,
+.cc-export-choice small {
+    display: block;
+}
+
+.cc-export-choice small {
+    margin-top: .1rem;
+    color: var(--text-muted);
+    line-height: 1.35;
+}
+
+.cc-export-note {
+    display: block;
+    margin-top: .65rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+.cc-review-metrics {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0;
+    margin-bottom: 1.35rem;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, .38);
+}
+
+.cc-review-metric {
+    min-height: 98px;
+    padding: 1rem 1.1rem;
+    border-right: 1px solid var(--border);
+    background: transparent;
+}
+.cc-review-metric:last-child { border-right: 0; }
+
+.cc-review-metric span {
+    display: block;
+    color: var(--text-secondary);
+    font-size: .73rem;
+    font-weight: 650;
+    letter-spacing: .01em;
+}
+
+.cc-review-metric strong {
+    display: block;
+    margin-top: .35rem;
+    color: var(--text-primary);
+    font-size: 1.75rem;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+
+.cc-review-metric.is-warn strong { color: #95631e; }
+.cc-review-metric.is-ai strong { color: #674e91; }
+.cc-review-metric.is-ready { background: #234d39; }
+.cc-review-metric.is-ready span,
+.cc-review-metric.is-ready strong { color: #fff; }
+.cc-review-metric.is-done { background: rgba(38, 92, 66, .055); }
+.cc-review-metric.is-done strong { color: #406754; }
+
+.cc-review-controls {
+    margin-bottom: .75rem;
+    overflow: visible;
+    border: 1px solid #d8d0c6;
+    border-radius: 16px;
+    background: #f4efe8;
+}
+
+.cc-review-controls-heading,
+.cc-queue-heading {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+}
+.cc-review-controls-heading { padding: 1rem 1.1rem .8rem; }
+.cc-review-controls-heading h2,
+.cc-queue-heading h2 {
+    margin: .12rem 0 0;
+    color: var(--text-primary);
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: -.015em;
+}
+.cc-section-kicker {
+    display: block;
+    color: #795c42;
+    font-size: .68rem;
+    font-weight: 750;
+    letter-spacing: .075em;
+    text-transform: uppercase;
+}
+.cc-review-scope-note,
+.cc-queue-result { color: var(--text-muted); font-size: .76rem; }
+
+.cc-review-filters {
+    display: grid;
+    grid-template-columns: minmax(210px, 1.15fr) minmax(150px, .7fr) minmax(170px, .75fr) minmax(240px, 1.4fr) auto auto;
+    align-items: end;
+    gap: .75rem;
+    padding: .9rem 1.1rem 1.1rem;
+    border: 0;
+    border-top: 1px solid rgba(89, 68, 50, .11);
+    border-radius: 0;
+    background: transparent;
+}
+
+.cc-review-filter label,
+.cc-review-filter-label {
+    display: block;
+    margin-bottom: .3rem;
+    color: #675d54;
+    font-size: .73rem;
+    font-weight: 650;
+    letter-spacing: .015em;
+}
+
+.cc-review-filters .form-control,
+.cc-review-filters .form-select,
+.cc-review-filters .input-group-text {
+    min-height: 42px;
+    border-color: #d6cdc2;
+    background-color: rgba(255, 255, 255, .82);
+}
+.cc-review-filters .form-control:focus,
+.cc-review-filters .form-select:focus { border-color: var(--accent); box-shadow: 0 0 0 .2rem rgba(38, 92, 66, .12); }
+
+.cc-card-picker {
+    position: relative;
+}
+
+.cc-card-picker-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 40px;
+    cursor: pointer;
+    list-style: none;
+}
+
+.cc-card-picker-summary::-webkit-details-marker { display: none; }
+
+.cc-card-picker[open] .cc-card-picker-summary {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 .2rem rgba(38, 92, 66, .12);
+}
+
+.cc-card-picker-menu {
+    position: absolute;
+    z-index: 1040;
+    top: calc(100% + .35rem);
+    left: 0;
+    width: min(360px, 86vw);
+    max-height: 360px;
+    overflow-y: auto;
+    padding: .55rem;
+    border: 1px solid var(--border-hover);
+    border-radius: 12px;
+    background: var(--bg-elevated);
+    box-shadow: 0 14px 34px rgba(25, 28, 26, .16);
+}
+
+.cc-card-picker-menu legend {
+    padding: .35rem .5rem .55rem;
+    color: var(--text-secondary);
+    font-size: .75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.cc-card-option {
+    display: flex;
+    align-items: center;
+    gap: .7rem;
+    min-height: 44px;
+    padding: .45rem .55rem;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.cc-card-option:hover { background: var(--bg-hover); }
+.cc-card-option input { width: 1.1rem; height: 1.1rem; flex: none; }
+.cc-card-option span { min-width: 0; }
+.cc-card-option strong,
+.cc-card-option small { display: block; }
+.cc-card-option strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-card-option small { color: var(--text-muted); }
+
+.cc-review-apply { min-height: 42px; padding-inline: 1.1rem; }
+.cc-review-clear { min-height: 40px; white-space: nowrap; }
+
+.cc-ready-rule {
+    margin: .65rem 0 1.5rem;
+    border: 1px solid rgba(38, 92, 66, .13);
+    border-radius: 10px;
+    background: rgba(38, 92, 66, .045);
+    color: var(--text-secondary);
+    font-size: .84rem;
+}
+.cc-ready-rule summary {
+    display:flex; align-items:center; gap:.65rem; min-height:44px;
+    padding:.65rem .85rem; color:var(--text-primary); cursor:pointer; list-style:none;
+}
+.cc-ready-rule summary::-webkit-details-marker { display:none; }
+.cc-ready-rule summary > i:first-child { color:var(--accent); }
+.cc-ready-rule summary > i:last-child { transition:transform 160ms ease; }
+.cc-ready-rule[open] summary > i:last-child { transform:rotate(180deg); }
+.cc-ready-rule p { margin:0; padding:0 .9rem .8rem 2.55rem; line-height:1.5; }
+
+.cc-queue-heading { margin-bottom: .7rem; }
+
+.cc-review-actionbar {
+    position: sticky;
+    z-index: 1010;
+    top: 0;
+    display: flex;
+    align-items: center;
+    gap: .85rem;
+    min-height: 64px;
+    padding: .65rem 1rem;
+    border: 1px solid var(--border);
+    border-bottom: 0;
+    border-radius: 12px 12px 0 0;
+    background: #f5f1eb;
+    box-shadow: 0 5px 15px rgba(25, 28, 26, .045);
+}
+
+.cc-review-selection-copy {
+    display: grid;
+    min-width: 112px;
+    line-height: 1.2;
+}
+.cc-review-selection-copy strong { color: var(--text-primary); font-size: .8rem; }
+.cc-review-selection-copy span { margin-top: .2rem; color: var(--text-muted); font-size: .73rem; }
+
+.cc-select-all {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    min-height: 44px;
+    padding-inline: .5rem;
+    border-left: 1px solid var(--border);
+    cursor: pointer;
+}
+
+.cc-select-all input,
+.cc-queue-select input {
+    width: 1.1rem;
+    height: 1.1rem;
+}
+
+/* ── Split workspace ─────────────────────────────────────────────────────
+   One queue primitive at every width. The reconciliation matrix used to be a
+   1030 px-wide table, which meant a horizontal scroller from tablet widths
+   down and the review action offscreen on a phone. The stage beside it only
+   exists once there is room for it (see the workspace media query); until then
+   the row's Review control opens the same panel in the offcanvas. */
+.cc-review-workspace { display: grid; align-items: start; }
+
+.cc-review-queue-pane { min-width: 0; }
+
+.cc-queue {
+    display: grid;
+    gap: .55rem;
+    margin: 0;
+    padding: .6rem;
+    border: 1px solid var(--border);
+    border-radius: 0 0 12px 12px;
+    background: rgba(255, 255, 255, .52);
+    list-style: none;
+}
+
+.cc-queue-row {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    grid-template-areas:
+        "select merchant amount"
+        "select meta     status"
+        "select evidence evidence"
+        "select actions  actions";
+    gap: .3rem .6rem;
+    padding: .7rem .8rem;
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    background: var(--refresh-paper, #fffdfa);
+    box-shadow: var(--shadow-sm);
+    transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+
+.cc-queue-row.is-ready { box-shadow: inset 3px 0 #376f52, var(--shadow-sm); }
+.cc-queue-row:hover { border-color: var(--border-hover); }
+.cc-queue-row:has([data-cc-line]:checked) {
+    border-color: #376f52;
+    background: rgba(38, 92, 66, .07);
+}
+
+.cc-queue-select { grid-area: select; display: grid; place-items: start center; padding-top: .15rem; }
+.cc-queue-select input { flex: none; }
+
+.cc-queue-merchant {
+    grid-area: merchant;
+    margin: 0;
+    font-weight: 700;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+}
+
+.cc-queue-amount {
+    grid-area: amount;
+    margin: 0;
+    font-weight: 750;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.cc-queue-meta {
+    grid-area: meta;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .1rem .5rem;
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: .78rem;
+}
+.cc-queue-meta span + span::before { content: '·'; margin-right: .5rem; color: var(--text-muted); }
+
+.cc-queue-status {
+    grid-area: status;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: .3rem;
+    margin: 0;
+}
+
+.cc-queue-row .cc-evidence { grid-area: evidence; margin-top: .2rem; }
+/* The summary chip is the phone form of the three detail chips; exactly one of
+   the two is shown at any width (see the touch breakpoint). Both selectors are
+   scoped to .cc-evidence so they outrank the `.cc-evidence span` display rule
+   below rather than losing to it. */
+.cc-evidence .cc-evidence-brief { display: none; }
+.cc-evidence-detail { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-evidence .is-complete { color: #2f6f4f; background: rgba(47, 111, 79, .08); }
+.cc-evidence .is-missing { color: #9a5c11; background: rgba(183, 121, 31, .09); }
+
+.cc-queue-actions {
+    grid-area: actions;
+    display: flex;
+    justify-content: flex-end;
+    gap: .45rem;
+    margin-top: .35rem;
+    padding-top: .5rem;
+    border-top: 1px solid var(--border-light);
+}
+.cc-queue-actions .btn,
+.cc-ai-actions .btn { min-height: 40px; }
+
+.cc-review-stage { display: none; }
+
+.cc-review-sub { display: block; margin-top: .15rem; color: var(--text-muted); font-size: .75rem; }
+.cc-review-vat {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    margin-top: .35rem;
+    padding: .2rem .45rem;
+    border: 1px solid rgba(121, 89, 25, .28);
+    border-radius: 999px;
+    background: rgba(183, 140, 45, .1);
+    color: #795919;
+    font-size: .7rem;
+    font-weight: 700;
+}
+.cc-review-open { min-width: 88px; }
+
+.cc-evidence {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .3rem;
+}
+
+.cc-evidence span,
+.cc-state {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    min-height: 25px;
+    padding: .18rem .45rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: .72rem;
+    font-weight: 700;
+    line-height: 1.15;
+}
+
+.cc-evidence .is-complete { color: #2f6f4f; background: rgba(47, 111, 79, .08); }
+.cc-evidence .is-missing { color: #9a5c11; background: rgba(183, 121, 31, .09); }
+.cc-state.is-ready { color: #2f6f4f; border-color: rgba(47, 111, 79, .28); background: rgba(47, 111, 79, .09); }
+.cc-state.is-ai { color: #664a96; border-color: rgba(102, 74, 150, .26); background: rgba(102, 74, 150, .09); }
+.cc-state.is-waiting { color: #9a5c11; border-color: rgba(183, 121, 31, .28); background: rgba(183, 121, 31, .09); }
+.cc-state.is-reconciled { color: #406754; border-color: rgba(64, 103, 84, .28); background: rgba(64, 103, 84, .09); }
+
+.cc-review-drawer { width: min(540px, 100vw) !important; }
+.cc-review-drawer .offcanvas-header { border-bottom: 1px solid var(--border); }
+.cc-review-drawer .offcanvas-body { padding: 0 1.15rem 1.5rem; }
+
+/* A drawer's contents arrive from cc_review_line_panel when it is opened, so the
+   shell needs something to show in the gap and something to say if the fetch
+   fails. .cc-drawer-error is created by static/cc-review.js only. */
+.cc-drawer-loading,
+.cc-drawer-error { padding-top: 1.25rem; color: var(--text-muted); font-size: .85rem; }
+.cc-drawer-error { color: #9a3d24; }
+
+.cc-drawer-amount {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.1rem 0;
+    border-bottom: 1px solid var(--border);
+}
+
+/* Flex-wrap, not shrink: in the narrow stage the date drops below rather than
+   squeezing the amount until "R 457.44" breaks after the R. */
+.cc-drawer-amount { flex-wrap: wrap; }
+.cc-drawer-amount strong { font-size: 1.55rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cc-drawer-amount span { flex: 1 1 auto; color: var(--text-muted); font-size: .8rem; text-align: right; }
+
+.cc-drawer-section {
+    padding: 1.1rem 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.cc-drawer-section h3 {
+    margin: 0 0 .75rem;
+    color: var(--text-primary);
+    font-size: .95rem;
+    font-weight: 750;
+}
+
+.cc-checklist { display: grid; gap: .45rem; margin: 0; padding: 0; list-style: none; }
+.cc-checklist li { display: flex; align-items: center; gap: .5rem; color: var(--text-secondary); }
+.cc-checklist li i { color: var(--text-muted); }
+.cc-checklist li.is-done { color: var(--text-primary); }
+.cc-checklist li.is-done i { color: #2f6f4f; }
+
+.cc-vat-review-note {
+    display: flex;
+    align-items: flex-start;
+    gap: .65rem;
+    margin-bottom: 1rem;
+    padding: .8rem .9rem;
+    border: 1px solid rgba(121, 89, 25, .28);
+    border-radius: 10px;
+    background: #fff9e8;
+    color: #5f4613;
+}
+
+.cc-vat-review-note > i { margin-top: .1rem; font-size: 1.05rem; }
+.cc-vat-review-note strong,
+.cc-vat-review-note span { display: block; }
+.cc-vat-review-note span { margin-top: .2rem; font-size: .8rem; line-height: 1.45; }
+
+.cc-review-details { margin: 0; }
+.cc-review-details div {
+    display: grid;
+    grid-template-columns: 110px minmax(0, 1fr);
+    gap: .75rem;
+    padding: .45rem 0;
+}
+.cc-review-details dt { color: var(--text-muted); font-size: .78rem; }
+.cc-review-details dd { margin: 0; overflow-wrap: anywhere; }
+
+.cc-receipt-list { display: grid; gap: .5rem; }
+.cc-receipt-link {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    min-height: 48px;
+    padding: .55rem .65rem;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    color: inherit;
+    text-decoration: none;
+}
+.cc-receipt-link:hover { border-color: var(--accent); background: var(--bg-hover); color: inherit; }
+.cc-receipt-link > i:first-child { color: var(--accent); font-size: 1.2rem; }
+.cc-receipt-link span { min-width: 0; flex: 1; }
+.cc-receipt-link strong,
+.cc-receipt-link small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-receipt-link small { color: var(--text-muted); }
+
+/* Reading the receipt is the review, so an image one shows itself rather than
+   costing a new tab. The link still opens the full-size file. */
+.cc-receipt-link.has-preview { align-items: flex-start; flex-wrap: wrap; overflow: hidden; }
+.cc-receipt-thumb {
+    order: -1;
+    flex: 0 0 100%;
+    min-width: 0;
+    max-width: 100%;
+    max-height: 340px;
+    border-radius: 7px;
+    background: var(--refresh-sand, #e8e0d2);
+    object-fit: contain;
+}
+
+.cc-ai-review {
+    margin-inline: -.55rem;
+    padding-inline: .55rem;
+    background: rgba(102, 74, 150, .045);
+}
+
+.cc-ai-suggestion {
+    display: grid;
+    gap: .7rem;
+    padding: .8rem;
+    border: 1px solid rgba(102, 74, 150, .22);
+    border-radius: 10px;
+    background: var(--bg-elevated);
+}
+.cc-ai-suggestion strong,
+.cc-ai-suggestion small { display: block; }
+.cc-ai-suggestion small { color: var(--text-muted); }
+.cc-ai-actions { display: flex; flex-wrap: wrap; gap: .45rem; }
+.cc-ai-actions form { margin: 0; }
+
+.cc-account-suggestion {
+    display: grid;
+    gap: .25rem;
+    margin: 0;
+    padding: .75rem;
+    border: 1px solid rgba(183, 121, 31, .25);
+    border-radius: 9px;
+    background: rgba(183, 121, 31, .07);
+}
+.cc-account-suggestion span { color: #9a5c11; font-size: .78rem; font-weight: 700; }
+.cc-account-suggestion small { color: var(--text-muted); }
+.cc-account-suggestion.is-confirmed { border-color: rgba(47, 111, 79, .25); background: rgba(47, 111, 79, .07); }
+.cc-account-suggestion.is-confirmed span { color: #2f6f4f; }
+.cc-drawer-footer { display: grid; gap: .6rem; padding-top: 1rem; }
+/* Added by static/cc-review.js's owner, not the form: it drives the queue's
+   reconcile form for this one line. */
+.cc-stage-close { min-height: 46px; font-weight: 700; }
+/* The per-row VAT tax-invoice toggle. Icon-only with a title + visually-hidden
+   label so it fits the action column; the full-text control is still in the
+   drawer. It posts through #ccReviewFilterState, which is why the page keeps a
+   single form for per-row actions rather than one form per row. */
+.cc-review-vat-toggle {
+    min-height: 40px;
+    border: 1px solid rgba(121, 89, 25, .32);
+    background: rgba(183, 140, 45, .08);
+    color: #795919;
+    margin-right: .35rem;
+}
+.cc-review-vat-toggle:hover,
+.cc-review-vat-toggle:focus-visible,
+.cc-review-vat-toggle.is-active {
+    border-color: #795919;
+    background: rgba(183, 140, 45, .18);
+    color: #5c4312;
+}
+
+.cc-vat-toggle {
+    min-height: 44px;
+    border: 1px solid rgba(121, 89, 25, .32);
+    background: rgba(183, 140, 45, .08);
+    color: #795919;
+}
+.cc-vat-toggle:hover,
+.cc-vat-toggle:focus-visible,
+.cc-vat-toggle.is-active {
+    border-color: #795919;
+    background: rgba(183, 140, 45, .15);
+    color: #5f4613;
+}
+
+.cc-review-empty {
+    padding: 4rem 1rem;
+    border: 1px dashed var(--border-hover);
+    border-radius: 12px;
+    text-align: center;
+}
+.cc-review-empty > i { color: var(--accent); font-size: 2.3rem; }
+.cc-review-empty h2 { margin-top: .7rem; }
+
+@media (max-width: 1199.98px) {
+    .cc-review-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .cc-review-search { grid-column: span 2; }
+}
+
+/* ── Stage: the second half of the workspace ──────────────────────────────
+   Kept in step with WORKSPACE_QUERY in static/cc-review.js — that script only
+   claims the row controls and fills the stage at this width, so the two must
+   agree or a row would hand its panel to a hidden element. */
+@media (min-width: 1200px) {
+    .cc-review-workspace {
+        grid-template-columns: minmax(0, 1fr) clamp(360px, 38%, 520px);
+        gap: 1.35rem;
+    }
+
+    .cc-review-workspace.is-split .cc-review-stage {
+        position: sticky;
+        top: 1rem;
+        display: block;
+        max-height: calc(100vh - 2rem);
+        padding: 0 1.15rem 1.35rem;
+        overflow-y: auto;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: var(--refresh-paper, #fffdfa);
+        box-shadow: var(--shadow);
+        overscroll-behavior: contain;
+    }
+
+    .cc-review-workspace.is-split .cc-review-stage .cc-panel-header {
+        position: sticky;
+        z-index: 2;
+        top: 0;
+        margin-inline: -1.15rem;
+        padding: 1rem 1.15rem .8rem;
+        border-bottom: 1px solid var(--border);
+        background: var(--refresh-paper, #fffdfa);
+    }
+    /* The stage is not a drawer, so its close control has nothing to close. */
+    .cc-review-workspace.is-split .cc-review-stage .btn-close { display: none; }
+
+    .cc-stage-hint { padding-top: 1.35rem; color: var(--text-muted); font-size: .85rem; }
+
+    /* A clicked row owns the stage; make that relationship visible. */
+    .cc-review-workspace.is-split .cc-queue-row { cursor: pointer; }
+    .cc-review-workspace.is-split .cc-queue-row.is-active {
+        border-color: var(--refresh-forest, #29483a);
+        box-shadow: inset 3px 0 var(--refresh-forest, #29483a), 0 6px 18px rgba(32, 26, 20, .09);
+    }
+
+    /* Beside the stage the queue is scanned, not read: the row loses its own
+       action strip (the stage carries the full-text VAT control and the close
+       action) and the per-row buttons ride alongside the evidence chips. Row
+       height matters here — this is the list finance arrows through. */
+    .cc-review-workspace.is-split .cc-queue-row {
+        grid-template-areas:
+            "select merchant amount"
+            "select meta     status"
+            "select evidence actions";
+        row-gap: .2rem;
+        padding-block: .6rem;
+    }
+    .cc-review-workspace.is-split .cc-queue-merchant {
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        overflow: hidden;
+    }
+    .cc-review-workspace.is-split .cc-queue-meta { font-size: .75rem; }
+    .cc-review-workspace.is-split .cc-queue-row .cc-evidence { margin-top: .25rem; }
+    .cc-review-workspace.is-split .cc-queue-actions {
+        align-items: center;
+        margin-top: .25rem;
+        padding-top: 0;
+        border-top: 0;
+    }
+    /* The row itself is the way in now, so Review shrinks to the icon that
+       already sits inside it. Its accessible name is unchanged. */
+    .cc-review-workspace.is-split .cc-review-open { min-width: 0; font-size: 0; }
+    .cc-review-workspace.is-split .cc-review-open i { margin-left: 0 !important; font-size: 14px; }
+}
+
+@media (max-width: 700px) {
+    .cc-review-heading { align-items: stretch; flex-direction: column; }
+    .cc-review-heading-actions { align-items: stretch; flex-direction: column; }
+    .cc-review-heading-actions > .btn,
+    .cc-export-menu > summary { justify-content: center; width: 100%; }
+    .cc-export-menu-panel { right: auto; left: 0; width: 100%; }
+    .cc-review-heading { gap:1rem; margin-bottom:1rem; padding-bottom:1rem; }
+    .cc-review-heading-copy h2 { font-size:1.3rem; }
+    .cc-review-heading > div:first-child .text-muted { font-size:.82rem; line-height:1.45; }
+    .cc-review-heading-actions { display:grid; grid-template-columns:minmax(0,1fr) auto; }
+    .cc-review-heading-actions > .btn { width:auto; min-width:44px; }
+    .cc-review-heading-actions > .btn i { margin-right:0 !important; }
+    .cc-review-heading-actions > .btn { font-size:0; }
+    .cc-review-heading-actions > .btn i { font-size:14px; }
+    .cc-review-metrics {
+        display:flex; gap:.5rem; margin:0 -10px .8rem; padding:0 10px .35rem;
+        overflow-x:auto; border:0; border-radius:0; background:transparent;
+        scroll-snap-type:x proximity; scrollbar-width:thin;
+    }
+    .cc-review-metric {
+        flex:0 0 132px; min-height:70px; padding:.65rem .75rem;
+        border:1px solid var(--border); border-radius:12px;
+        background:rgba(255,255,255,.5); scroll-snap-align:start;
+    }
+    .cc-review-metric.is-ready { border-color:#234d39; background:#234d39; }
+    .cc-review-metric.is-done { background:rgba(38,92,66,.055); }
+    .cc-review-metric span { font-size:.68rem; }
+    .cc-review-metric strong { font-size:1.35rem; }
+    .cc-review-controls { border-radius:13px; }
+    .cc-review-controls-heading,
+    .cc-queue-heading { align-items:flex-start; flex-direction:column; gap:.35rem; }
+    .cc-review-controls-heading { padding:.85rem .85rem .7rem; }
+    .cc-review-scope-note,
+    .cc-queue-result { font-size:.72rem; }
+    .cc-review-filters { grid-template-columns: repeat(2,minmax(0,1fr)); padding:.75rem .85rem .85rem; gap:.65rem; }
+    .cc-card-picker-field, .cc-review-search { grid-column:1 / -1; }
+    .cc-review-apply,
+    .cc-review-clear { width: 100%; min-height:44px; }
+    .cc-ready-rule { margin-bottom:1.25rem; }
+    .cc-ready-rule p { padding-left:.85rem; }
+    .cc-queue-heading { margin-bottom:.65rem; }
+    .cc-review-actionbar { flex-wrap: wrap; border-bottom: 1px solid var(--border); border-radius: 12px; }
+    .cc-review-actionbar .btn { width: 100%; }
+    .cc-review-selection-copy { flex:1; }
+    .cc-select-all { border-left:0; padding-inline:0; }
+    .cc-review-drawer .offcanvas-body { padding-inline: 1rem; }
+
+    /* Touch sizing and a little more room per row; the queue itself is already
+       the same list it is on a desktop. */
+    .cc-queue { padding:0; border:0; background:transparent; }
+    /* A phone queue row is scanned, then opened. Identity, amount, state and a
+       one-line evidence summary earn their place; the reason and location text,
+       and the VAT toggle, live in the drawer the row opens — three label rows
+       and a full action strip per row made a page of them thousands of pixels
+       tall. Review stays a real 44 px control so the no-JS path still works. */
+    .cc-queue-row {
+        grid-template-columns:44px minmax(0,1fr) auto;
+        grid-template-areas:
+            "select merchant merchant"
+            "select meta     amount"
+            "select status   actions"
+            "select evidence evidence";
+        align-items:center;
+        row-gap:.15rem;
+        padding:.65rem .7rem;
+    }
+    /* The merchant name spans both content columns: sharing the row with the
+       amount left it about 160 px and three wrapped lines. */
+    .cc-queue-select { align-self:start; min-height:44px; }
+    .cc-queue-amount { font-size:.95rem; }
+    .cc-queue-meta {
+        display:block; overflow:hidden;
+        text-overflow:ellipsis; white-space:nowrap; font-size:.75rem;
+    }
+    .cc-queue-status { justify-content:flex-start; }
+    .cc-evidence .cc-evidence-brief { display:inline-flex; }
+    .cc-evidence .cc-evidence-detail { display:none; }
+    .cc-evidence span { min-height:26px; }
+    .cc-queue-actions { margin-top:0; padding-top:0; border-top:0; }
+    .cc-queue-actions .cc-review-vat-toggle { display:none; }
+    .cc-queue-actions .cc-review-open { min-height:44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cc-review-drawer { scroll-behavior: auto; }
+    .cc-export-choice { transition: none; }
+    .cc-ready-rule summary > i:last-child { transition:none; }
+    .cc-queue-row { transition:none; }
+}

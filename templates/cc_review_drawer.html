@@ -1,0 +1,187 @@
+{#
+  One review drawer's contents, fetched by static/cc-review.js when the drawer is
+  actually opened (route: cc_review_line_panel).
+
+  This markup used to be rendered inline for EVERY row on /cards/review — about
+  90 elements and three per-row <form>s each, which is where that page's 11,000
+  DOM elements and 766 KB came from, on a Cache-Control: no-store page, for a
+  panel an admin opens one row of at a time.
+
+  It is the offcanvas's full inner content: header + body, so the fetch can
+  replace the whole shell in one assignment.
+#}
+{% from '_cc_review_filters.html' import preserve_filters with context %}
+{% set browser_image_exts = ['png', 'jpg', 'jpeg', 'gif', 'webp'] %}
+<div class="offcanvas-header cc-panel-header">
+    <div>
+        <p class="eyebrow mb-1">{{ line.display_name or line.card_name }}</p>
+        <h2 class="offcanvas-title h5 mb-0" id="ccReviewLineTitle{{ line.id }}">{{ line.reference }}</h2>
+    </div>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close review"></button>
+</div>
+<div class="offcanvas-body cc-panel-body">
+    <div class="cc-drawer-amount">
+        <strong>R {{ ((line.amount_cents|abs)/100)|rands }}</strong>
+        <span>{{ line.line_date or 'No date' }} · {{ line.card_name }}</span>
+    </div>
+
+    {% if line.vat_invoice_required %}
+    <div class="cc-vat-review-note" role="note">
+        <i class="bi bi-file-earmark-text"></i>
+        <div>
+            <strong>VAT tax invoice requested</strong>
+            <span>The cardholder has been asked for a supplier tax invoice made out to Northwind Apparel and showing the company VAT number.</span>
+        </div>
+    </div>
+    {% endif %}
+
+    <section class="cc-drawer-section">
+        <h3>Completion</h3>
+        <ul class="cc-checklist">
+            <li class="{% if line.personal or line.has_receipt %}is-done{% endif %}">
+                <i class="bi {% if line.personal or line.has_receipt %}bi-check-circle-fill{% else %}bi-circle{% endif %}"></i>
+                Receipt linked or personal
+            </li>
+            <li class="{% if line.has_reason %}is-done{% endif %}">
+                <i class="bi {% if line.has_reason %}bi-check-circle-fill{% else %}bi-circle{% endif %}"></i>
+                Reason supplied
+            </li>
+            <li class="{% if line.has_location %}is-done{% endif %}">
+                <i class="bi {% if line.has_location %}bi-check-circle-fill{% else %}bi-circle{% endif %}"></i>
+                Location supplied
+            </li>
+            <li class="{% if line.submitted_at %}is-done{% endif %}">
+                <i class="bi {% if line.submitted_at %}bi-check-circle-fill{% else %}bi-circle{% endif %}"></i>
+                Submitted to finance
+            </li>
+            <li class="{% if not line.has_pending_suggestion %}is-done{% endif %}">
+                <i class="bi {% if not line.has_pending_suggestion %}bi-check-circle-fill{% else %}bi-circle{% endif %}"></i>
+                No receipt match awaiting review
+            </li>
+            <li class="{% if not line.vat_invoice_required %}is-done{% endif %}">
+                <i class="bi {% if not line.vat_invoice_required %}bi-check-circle-fill{% else %}bi-exclamation-circle-fill{% endif %}"></i>
+                VAT tax-invoice request cleared by finance
+            </li>
+        </ul>
+    </section>
+
+    <section class="cc-drawer-section">
+        <h3>Cardholder details</h3>
+        <dl class="cc-review-details">
+            <div><dt>Reason</dt><dd>{{ line.reason if line.has_reason else 'Not supplied' }}</dd></div>
+            <div><dt>Location</dt><dd>{{ line.location if line.has_location else 'Not supplied' }}</dd></div>
+            <div><dt>Personal</dt><dd>{{ 'Yes — employee to repay' if line.personal else 'No' }}</dd></div>
+            <div><dt>Submitted</dt><dd>{{ line.submitted_at or 'Not submitted' }}</dd></div>
+            <div><dt>VAT invoice request</dt><dd>{{ 'Open — waiting for a compliant tax invoice' if line.vat_invoice_required else 'None' }}</dd></div>
+        </dl>
+    </section>
+
+    <section class="cc-drawer-section">
+        <h3>Receipt{{ 's' if line.receipts|length != 1 else '' }}</h3>
+        {% if line.receipts %}
+        <div class="cc-receipt-list">
+            {% for receipt in line.receipts %}
+            {# Image receipts preview in place — reading the evidence IS the review,
+               so it should not cost a new tab. Everything else keeps the link. #}
+            {% set ext = (receipt.file_path.rsplit('.', 1)[-1]|lower) if receipt.file_path and '.' in receipt.file_path else '' %}
+            <a href="{{ url_for('cc_portal_file', receipt_id=receipt.id) }}" target="_blank"
+               rel="noopener" class="cc-receipt-link{% if ext in browser_image_exts %} has-preview{% endif %}">
+                {% if ext in browser_image_exts %}
+                <img class="cc-receipt-thumb" loading="lazy"
+                     src="{{ url_for('cc_portal_file', receipt_id=receipt.id) }}"
+                     alt="Receipt for {{ line.reference }}">
+                {% else %}
+                <i class="bi {{ 'bi-file-earmark-text' if ext == 'pdf' else 'bi-file-earmark-arrow-down' }}"></i>
+                {% endif %}
+                <span>
+                    <strong>{{ receipt.download_name or receipt.original_filename or 'Receipt' }}</strong>
+                    <small>{{ receipt.ai_vendor or ('Open PDF' if ext == 'pdf' else 'Open receipt') }}</small>
+                </span>
+                <i class="bi bi-box-arrow-up-right"></i>
+            </a>
+            {% endfor %}
+        </div>
+        {% elif line.personal %}
+        <p class="text-muted mb-0">Personal transaction — no receipt required.</p>
+        {% else %}
+        <p class="text-danger mb-0">No receipt linked to this transaction.</p>
+        {% endif %}
+    </section>
+
+    {% if line.suggestions %}
+    <section class="cc-drawer-section cc-ai-review">
+        <h3><i class="bi bi-magic me-1"></i>Receipt match to decide</h3>
+        {% for suggestion in line.suggestions %}
+        <div class="cc-ai-suggestion">
+            <div>
+                <strong>{{ suggestion.ai_vendor or suggestion.original_filename or 'Uploaded receipt' }}</strong>
+                <small>
+                    {% if suggestion.ai_date %}{{ suggestion.ai_date }} · {% endif %}
+                    {% if suggestion.ai_total_cents is not none %}R {{ '%.2f'|format((suggestion.ai_total_cents|abs)/100) }} · {% endif %}
+                    {{ (suggestion.score * 100)|round|int }}% match
+                </small>
+            </div>
+            <div class="cc-ai-actions">
+                <a class="btn btn-sm btn-outline-secondary"
+                   href="{{ url_for('cc_portal_file', receipt_id=suggestion.receipt_id) }}"
+                   target="_blank" rel="noopener">Preview</a>
+                <form method="post" action="{{ url_for('cc_review_dismiss_suggestion', suggestion_id=suggestion.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    {{ preserve_filters() }}
+                    <button class="btn btn-sm btn-outline-secondary">Dismiss</button>
+                </form>
+                <form method="post" action="{{ url_for('cc_review_confirm_suggestion', suggestion_id=suggestion.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    {{ preserve_filters() }}
+                    <button class="btn btn-sm btn-primary">Confirm match</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    <section class="cc-drawer-section">
+        <h3>Xero account</h3>
+        {% if line.xero_account_code %}
+        <p class="cc-account-suggestion is-confirmed">
+            <span><i class="bi bi-check-circle-fill"></i> Confirmed in NORTHWIND</span>
+            <strong>{{ line.xero_account_code }} · {{ line.xero_account_name }}</strong>
+        </p>
+        {% elif line.ai_account_code %}
+        <p class="cc-account-suggestion">
+            <span><i class="bi bi-lightbulb"></i> Suggestion — does not block readiness</span>
+            <strong>{{ line.ai_account_code }} · {{ line.ai_account_name }}</strong>
+            {% if line.ai_confidence %}<small>{{ line.ai_confidence|title }} confidence</small>{% endif %}
+            {% if line.ai_rationale %}<small>{{ line.ai_rationale }}</small>{% endif %}
+        </p>
+        {% else %}
+        <p class="text-muted mb-0">No account suggestion yet. This does not block readiness.</p>
+        {% endif %}
+    </section>
+
+    <div class="cc-drawer-footer">
+        {# Closing one transaction and moving on is the whole job, so the panel
+           offers it directly. It drives the queue's existing reconcile form
+           (one line, its own confirm) rather than a second endpoint, and
+           static/cc-review.js loads the next transaction after the reload. #}
+        {% if line.ready_for_xero and not line.xero_reconciled %}
+        <button type="button" class="btn btn-success cc-stage-close"
+                data-cc-close-line="{{ line.id }}">
+            <i class="bi bi-check2-square me-1"></i> Reconcile and open next
+        </button>
+        {% endif %}
+        <form method="post" action="{{ url_for('cc_review_toggle_vat_invoice', line_id=line.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            {{ preserve_filters() }}
+            <button class="btn cc-vat-toggle w-100 {% if line.vat_invoice_required %}is-active{% endif %}">
+                <i class="bi {% if line.vat_invoice_required %}bi-file-earmark-check-fill{% else %}bi-file-earmark-plus{% endif %} me-1"></i>
+                {{ 'Clear VAT invoice request' if line.vat_invoice_required else 'Request VAT tax invoice' }}
+            </button>
+        </form>
+        <a class="btn btn-outline-secondary w-100"
+           href="{{ url_for('cc_card', card_id=line.card_id, statement_id=line.statement_id) }}">
+            Open this card month
+        </a>
+    </div>
+</div>

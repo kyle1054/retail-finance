@@ -1,0 +1,253 @@
+{% extends 'base.html' %}
+{% block title %}Employees — Northwind Deductions{% endblock %}
+{% block page_title %}Employees{% endblock %}
+
+{% from '_pager.html' import pager as list_pager %}
+{% block content %}
+{# The HQ workspace renders this same template through hq_employees, which does
+   not window its rows. Degrade to the old whole-list behaviour there instead of
+   failing on an undefined pager. Both routes do support the ?q= search. #}
+{% set pager = pager|default(none) %}
+{% set total_employees = total_employees|default(employees|length) %}
+<link href="{{ url_for('static', filename='employees-refresh.css') }}" rel="stylesheet">
+<div class="employees-refresh-page">
+<section class="employee-directory-intro" aria-labelledby="employeeDirectoryTitle">
+    <div class="employee-directory-heading">
+        <span class="employee-directory-kicker">People directory</span>
+        <h1 id="employeeDirectoryTitle">Employees</h1>
+        <p>Find an employee, review what they owe, or open their full deduction history.</p>
+    </div>
+    <div class="employee-directory-count" aria-label="{{ total_employees }} employees in this view">
+        <strong>{{ total_employees }}</strong>
+        <span>employee{{ 's' if total_employees != 1 }}</span>
+    </div>
+</section>
+
+<div class="employee-directory-workbar">
+
+    <!-- Search + filters -->
+    <div class="employee-directory-filters">
+        <!-- The search box is attached to the filter form by id instead of being
+             nested inside it. static/employees.js cancels the submit event of
+             whatever form contains input[name="q"], which was harmless while
+             every employee was rendered, but on a windowed list it would pin
+             the search to whichever page you happen to be on. Outside the form
+             its instant client-side narrowing still runs, and Enter / the
+             button now reach the server so a match further down the list is
+             still found. -->
+        <div class="employee-filter-field employee-search-field">
+            <label for="employeeSearch">Search employees</label>
+            <div class="input-group search-bar">
+                <input id="employeeSearch" type="search" name="q" form="empFilterForm" class="form-control" placeholder="Name or employee ID" value="{{ search }}">
+                <button class="btn btn-outline-secondary" type="submit" form="empFilterForm" aria-label="Search employees"><i class="bi bi-search" aria-hidden="true"></i></button>
+            </div>
+        </div>
+        <form class="employee-filter-form" method="get" id="empFilterForm">
+            <div class="employee-filter-field">
+                <label for="employeeStoreFilter">Store</label>
+                <select id="employeeStoreFilter" name="store" class="form-select" data-submit-on-change>
+                    <option value="">All stores</option>
+                    {% for s in stores %}
+                        <option value="{{ s }}" {% if s == store_filter %}selected{% endif %}>{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="employee-filter-field">
+                <label for="employeeStatusFilter">Status</label>
+                <select id="employeeStatusFilter" name="status" class="form-select" data-submit-on-change>
+                    <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
+                    <option value="terminated" {% if status_filter == 'terminated' %}selected{% endif %}>Terminated</option>
+                    <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All employees</option>
+                </select>
+            </div>
+        </form>
+    </div>
+
+    <!-- Add Employee button -->
+    <button class="btn btn-primary employee-add-button" data-bs-toggle="modal" data-bs-target="#addEmpModal">
+        <i class="bi bi-person-plus me-1"></i>Add Employee
+    </button>
+</div>
+
+{% if duplicate_groups %}
+<div class="alert alert-warning d-flex flex-column gap-2 mb-3" style="border-left:4px solid #b45309;">
+    <div class="fw-bold">
+        <i class="bi bi-exclamation-triangle me-1"></i>
+        {{ duplicate_groups|length }} possible duplicate{{ 's' if duplicate_groups|length != 1 }} found
+        <span class="fw-normal" style="font-size:12px;color:#92400e;">— same name (including swapped first/last or a missing comma)</span>
+    </div>
+    {% for group in duplicate_groups %}
+    <div class="d-flex flex-wrap align-items-center gap-2" style="font-size:13px;">
+        {% for e in group %}
+        <a href="{{ url_for('employee_detail', emp_id=e.id) }}"
+           class="badge text-decoration-none {{ 'bg-secondary' if e.status != 'active' else 'bg-warning text-dark' }}"
+           style="font-weight:600;">
+            {{ e.full_name }} · {{ e.id }}{% if e.current_store %} · {{ e.current_store }}{% endif %} · {{ e.links }} plan{{ 's' if e.links != 1 }}{% if e.status != 'active' %} · {{ e.status }}{% endif %}
+        </a>
+        {% if not loop.last %}<i class="bi bi-arrow-left-right" style="color:#92400e;"></i>{% endif %}
+        {% endfor %}
+        <button type="button" class="btn btn-sm btn-warning ms-1" style="font-size:11px;padding:2px 10px;font-weight:600;"
+                data-bs-toggle="modal" data-bs-target="#mergeModal{{ loop.index }}">
+            <i class="bi bi-union me-1"></i>Merge
+        </button>
+    </div>
+
+    <!-- Merge confirmation modal for this group -->
+    <div class="modal fade" id="mergeModal{{ loop.index }}" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content border-0" style="border-radius:14px;">
+                <form method="post" action="{{ url_for('merge_employee_records') }}">
+                    {% for e in group %}<input type="hidden" name="member_ids" value="{{ e.id }}">{% endfor %}
+                    <div class="modal-header border-0 pb-1">
+                        <h6 class="modal-title fw-bold">Merge duplicate employees</h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p style="font-size:13px;color:#475569;margin-bottom:10px;">
+                            Choose the record to <strong>keep</strong>. All plans, deductions and history from the
+                            other{{ 's' if group|length > 2 }} will move onto it, then the duplicate{{ 's' if group|length > 2 }} will be permanently deleted.
+                        </p>
+                        {% for e in group %}
+                        <label class="d-flex align-items-start gap-2 p-2 mb-1" style="border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;">
+                            <input type="radio" name="keep_id" value="{{ e.id }}" {{ 'checked' if loop.first }} class="mt-1">
+                            <span style="font-size:13px;">
+                                <strong>{{ e.full_name }}</strong> · {{ e.id }}<br>
+                                <span style="color:#64748b;">{{ e.current_store or '—' }} · {{ e.links }} linked plan{{ 's' if e.links != 1 }}{% if e.status != 'active' %} · <span class="text-danger">{{ e.status }}</span>{% endif %}</span>
+                            </span>
+                        </label>
+                        {% endfor %}
+                        <div class="alert alert-warning mt-2 mb-0" style="font-size:12px;padding:8px 10px;">
+                            <i class="bi bi-exclamation-triangle me-1"></i>This can't be undone. On a single-server host, make sure you have a recent DB backup first.
+                        </div>
+                    </div>
+                    <div class="modal-footer border-0 pt-0">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-warning btn-sm fw-semibold">Merge &amp; delete duplicate</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+    <div style="font-size:12px;color:#92400e;">Pick <strong>Merge</strong> and choose the record to keep — its plans are consolidated and the duplicate is removed. Open a record first if you're unsure.</div>
+</div>
+{% endif %}
+
+<!-- Employee table -->
+<div class="employee-directory-surface">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="employee-results-label">{{ total_employees }} employee{{ 's' if total_employees != 1 }}</span>
+        <span class="employee-sort-hint" style="font-size:11px;color:#94a3b8;">Click column headers to sort</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover mb-0 employee-directory-table" id="empTable">
+            <thead>
+                <tr>
+                    <th class="sortable employee-id-proxy" data-col="0" style="cursor:pointer;">ID <i class="bi bi-chevron-expand ms-1" style="font-size:10px;"></i></th>
+                    <th class="sortable" data-col="1" style="cursor:pointer;">Employee <i class="bi bi-chevron-expand ms-1" style="font-size:10px;"></i></th>
+                    <th class="sortable" data-col="2" style="cursor:pointer;">Store <i class="bi bi-chevron-expand ms-1" style="font-size:10px;"></i></th>
+                    <th class="employee-role-proxy">Job Title</th>
+                    <th>Status</th>
+                    <th class="sortable" data-col="5" style="cursor:pointer;text-align:right;">Outstanding <i class="bi bi-chevron-expand ms-1" style="font-size:10px;"></i></th>
+                    <th><span class="visually-hidden">Open profile</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for emp in employees %}
+                {% set owed = outstanding.get(emp.id, 0) %}
+                {% set initial_parts = emp.full_name.replace(',', ' ').split() %}
+                <tr class="employee-record-row">
+                    <td class="employee-id-proxy" aria-hidden="true">{{ emp.id }}</td>
+                    <td class="employee-card-primary" data-label="Employee">
+                        <div class="employee-list-identity">
+                            <span class="employee-list-avatar" aria-hidden="true">{{ initial_parts[0][0] }}{% if initial_parts|length > 1 %}{{ initial_parts[-1][0] }}{% endif %}</span>
+                            <span class="employee-list-name-block">
+                                <span class="employee-list-name">{{ emp.full_name }}</span>
+                                <span class="employee-list-id">{{ emp.id }}
+                                    <button class="btn-copy" type="button" data-copy-text="{{ emp.id }}" title="Copy employee ID" aria-label="Copy employee ID {{ emp.id }}"><i class="bi bi-clipboard" aria-hidden="true"></i></button>
+                                </span>
+                            </span>
+                        </div>
+                        {% if emp.notes %}<div class="employee-list-note">{{ emp.notes[:60] }}{% if emp.notes|length > 60 %}…{% endif %}</div>{% endif %}
+                    </td>
+                    <td class="employee-card-store" data-label="Location">
+                        <span class="employee-list-store">{{ emp.current_store }}</span>
+                        <button class="btn-copy" type="button" data-copy-text="{{ emp.current_store }}" title="Copy store" aria-label="Copy store {{ emp.current_store }}"><i class="bi bi-clipboard" aria-hidden="true"></i></button>
+                        <span class="employee-list-role">{{ emp.job_title }}</span>
+                    </td>
+                    <td class="employee-role-proxy" aria-hidden="true">{{ emp.job_title }}</td>
+                    <td class="employee-card-status" data-label="Status">
+                        <span class="status-badge badge-{{ emp.status }}">{{ emp.status }}</span>
+                    </td>
+                    <td class="employee-card-value" data-label="Outstanding" style="text-align:right;">
+                        {% if owed > 0 %}
+                            <span class="employee-list-balance-label">Outstanding</span>
+                            <span class="employee-list-balance">R {{ "%.2f"|format(owed) }}</span>
+                        {% else %}
+                            <span class="employee-list-balance-label">Outstanding</span>
+                            <span class="employee-list-clear">Clear</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end employee-card-action">
+                        <a href="{{ url_for(current_workspace.employee_detail_ep, emp_id=emp.id) }}" class="employee-profile-link" aria-label="Open {{ emp.full_name }} profile">
+                            <span>Open profile</span><i class="bi bi-arrow-right" aria-hidden="true"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" class="text-center text-muted py-4">No employees found.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {{ list_pager(pager) }}
+</div>
+
+<!-- Add Employee Modal -->
+<div class="modal fade" id="addEmpModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content border-0" style="border-radius:14px;">
+            <div class="modal-header border-0 pb-0">
+                <h6 class="modal-title fw-bold">Add Employee</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            {% set add_stores = hq_stores if current_workspace.key == 'hq' else all_stores %}
+            <form method="post" action="{{ url_for(current_workspace.add_employee_ep) }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold" style="font-size:13px;">Full Name <small class="text-muted fw-normal">(Surname, Firstname format)</small></label>
+                        <input type="text" name="full_name" class="form-control" placeholder="e.g. Smith, John" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold" style="font-size:13px;">Store</label>
+                        <select name="store" class="form-select" required>
+                            <option value="">Select {{ 'location' if current_workspace.key == 'hq' else 'store' }}…</option>
+                            {% for s in add_stores %}
+                                <option value="{{ s }}">{{ s }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-1">
+                        <label class="form-label fw-semibold" style="font-size:13px;">Job Title</label>
+                        <select name="job_title" class="form-select" required>
+                            <option value="">Select title…</option>
+                            {% for t in job_titles %}
+                                <option value="{{ t }}">{{ t }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary btn-sm px-4">Add Employee</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='employees.js') }}"></script>
+{% endblock %}

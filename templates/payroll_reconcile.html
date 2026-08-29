@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% block title %}Quick Reconcile — Northwind Deductions{% endblock %}
+{% block page_title %}Quick Reconcile{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <!-- Left side: Store List -->
+    <div class="col-lg-5">
+        <div class="card h-100">
+            <div class="card-header d-flex align-items-center justify-content-between">
+                <span><i class="bi bi-shop me-2 text-primary"></i>Store Summaries</span>
+                <span class="badge" style="background:var(--accent-soft); color:var(--accent-2);">
+                    {{ year }} - {{ ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][month] }}
+                </span>
+            </div>
+            <div class="list-group list-group-flush" style="max-height: 68vh; overflow-y: auto;">
+                {% for s in store_summaries %}
+                <button type="button" 
+                        class="list-group-item list-group-item-action d-flex align-items-center justify-content-between py-3 store-list-item" 
+                        data-store-name="{{ s.name }}" 
+                        style="background:transparent; border-bottom:1px solid var(--border); color:var(--text-primary); transition: all 0.2s;">
+                    <div>
+                        <div class="fw-semibold text-primary"><i class="bi bi-geo-alt me-2"></i>{{ s.name }}</div>
+                        <div class="text-muted" style="font-size: 11.5px; margin-left: 20px;">
+                            R <span class="store-pending-amount">{{ "%.2f"|format(s.pending_amount) }}</span> outstanding
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge rounded-pill bg-warning text-dark fw-bold px-2.5 py-1" id="badge-count-{{ s.name|replace(' ', '-') }}">{{ s.pending_count }}</span>
+                        <i class="bi bi-chevron-right text-muted small"></i>
+                    </div>
+                </button>
+                {% endfor %}
+                {% if not store_summaries %}
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-check-circle text-success" style="font-size: 40px; opacity:0.6; display:block; margin-bottom:12px;"></i>
+                    <p class="mb-0">All stores fully reconciled for this month!</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Right side: Details Panel -->
+    <div class="col-lg-7">
+        <div class="card h-100" id="details-card" style="min-height: 68vh;">
+            <!-- Placeholder -->
+            <div class="card-body d-flex flex-column align-items-center justify-content-center text-center py-5 text-muted" id="placeholder-view">
+                <i class="bi bi-shop-window" style="font-size: 48px; color: var(--text-muted); opacity: 0.4; margin-bottom: 16px;"></i>
+                <h5 class="fw-semibold text-light">Select a Store</h5>
+                <p class="small text-muted" style="max-width: 320px;">Choose an active store from the list to drill down into active employees and perform individual or bulk ticking.</p>
+            </div>
+
+            <!-- Loading Spinner -->
+            <div class="card-body d-none flex-column align-items-center justify-content-center text-center py-5 text-muted" id="loading-view">
+                <div class="spinner-border text-primary mb-3" role="status"></div>
+                <h5 class="fw-semibold">Loading Store Records...</h5>
+            </div>
+
+            <!-- Content view -->
+            <div class="card-body d-none" id="content-view">
+                <div class="d-flex align-items-center justify-content-between border-bottom pb-3 mb-3 flex-wrap gap-2">
+                    <div>
+                        <h4 class="fw-bold mb-0 text-primary" id="selected-store-title">Westgate</h4>
+                        <span class="text-muted small"><span id="selected-store-emp-count">0</span> employees with pending deductions</span>
+                    </div>
+                    <button type="button" class="btn btn-success d-flex align-items-center gap-2 fw-semibold px-3 py-2 text-dark" id="bulk-tick-btn">
+                        <i class="bi bi-check-all" style="font-size: 16px;"></i>Bulk Tick Store
+                    </button>
+                </div>
+
+                <div class="employee-list-container" style="max-height: 52vh; overflow-y: auto; padding-right: 4px;" id="employee-list-wrapper">
+                    <!-- Employees and their plans dynamically rendered here -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<span id="payrollReconcileConfig" hidden data-year="{{ year }}" data-month="{{ month }}"></span>
+<script src="{{ url_for('static', filename='payroll-reconcile.js') }}"></script>
+{% endblock %}

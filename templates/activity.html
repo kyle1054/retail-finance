@@ -1,0 +1,194 @@
+{% extends 'base.html' %}
+{% block title %}Recent Activity — Northwind Deductions{% endblock %}
+{% block page_title %}Recent Activity{% endblock %}
+
+{% block content %}
+<!-- Summary bar -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon bg-blue-soft"><i class="bi bi-stars text-blue"></i></div>
+            <div>
+                <div class="stat-value">{{ summary.count }}</div>
+                <div class="stat-label">New entries · {{ days }} days</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon bg-teal-soft"><i class="bi bi-cart-fill text-teal"></i></div>
+            <div>
+                <div class="stat-value">{{ summary.laybys }}</div>
+                <div class="stat-label">Lay-bys</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon bg-amber-soft"><i class="bi bi-bag-fill text-amber"></i></div>
+            <div>
+                <div class="stat-value">{{ summary.uniforms }}</div>
+                <div class="stat-label">Uniform plans</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon bg-red-soft"><i class="bi bi-currency-dollar text-red"></i></div>
+            <div>
+                <div class="stat-value" style="font-size:20px;">R {{ "%.2f"|format(summary.value) }}</div>
+                <div class="stat-label">Value captured</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<form class="d-flex gap-2 flex-wrap align-items-center mb-4" method="get">
+    <select name="days" class="form-select" style="width:auto;font-size:14px;" onchange="this.form.submit()">
+        {% for d in valid_days %}
+        <option value="{{ d }}" {% if d == days %}selected{% endif %}>Last {{ d }} days</option>
+        {% endfor %}
+    </select>
+    <select name="cat" class="form-select" style="width:auto;font-size:14px;" onchange="this.form.submit()">
+        <option value="all" {% if cat_filter == 'all' %}selected{% endif %}>All categories</option>
+        <option value="layby" {% if cat_filter == 'layby' %}selected{% endif %}>Lay-bys</option>
+        <option value="uniform" {% if cat_filter == 'uniform' %}selected{% endif %}>Uniforms</option>
+        <option value="undercharge" {% if cat_filter == 'undercharge' %}selected{% endif %}>Undercharges</option>
+        <option value="overcharge" {% if cat_filter == 'overcharge' %}selected{% endif %}>Overcharges</option>
+    </select>
+    <select name="store" class="form-select" style="width:auto;font-size:14px;" onchange="this.form.submit()">
+        <option value="">All stores</option>
+        {% for s in stores %}
+        <option value="{{ s }}" {% if s == store_filter %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+    </select>
+    {% if store_filter or cat_filter != 'all' or days != 30 %}
+    <a href="{{ url_for('recent_activity') }}" class="btn btn-outline-secondary btn-sm">Clear all</a>
+    {% endif %}
+</form>
+
+{% if not day_groups %}
+<div class="text-center text-muted py-5">
+    <i class="bi bi-moon-stars" style="font-size:40px;opacity:.4;"></i>
+    <p class="mt-3 mb-0">Nothing new captured in the last {{ days }} days{% if store_filter %} for {{ store_filter }}{% endif %}.</p>
+</div>
+{% endif %}
+
+{% for group in day_groups %}
+<div class="mb-4">
+    <div class="d-flex align-items-center justify-content-between mb-2">
+        <h6 class="mb-0" style="color:var(--text-secondary);font-weight:700;letter-spacing:.03em;">
+            <i class="bi bi-calendar3 me-2"></i>{{ group.day }}
+        </h6>
+        <span style="font-size:12px;color:var(--text-secondary);">
+            {{ group.entries|length }} entr{{ 'y' if group.entries|length == 1 else 'ies' }} · R {{ "%.2f"|format(group.total) }}
+        </span>
+    </div>
+    <div class="card" style="border-radius:12px;overflow:hidden;">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" style="font-size:14px;">
+                <tbody>
+                {% for e in group.entries %}
+                    <tr>
+                        <td style="width:120px;">
+                            <span class="badge bg-{{ {'teal':'info','amber':'warning','red':'danger','blue':'primary'}[e.color] }}"
+                                  style="font-size:11px;"><i class="{{ e.icon }} me-1"></i>{{ e.kind }}</span>
+                        </td>
+                        <td>
+                            <a href="{{ e.url }}" class="fw-semibold" style="text-decoration:none;">{{ e.full_name }}</a>
+                            <div style="font-size:12px;color:var(--text-secondary);">
+                                {{ e.store }}{% if e.sector == 'hq' %} <span class="badge bg-secondary" style="font-size:9px;">HQ</span>{% endif %}
+                            </div>
+                        </td>
+                        <td>
+                            <div>{{ e.description }}</div>
+                            <div style="font-size:12px;color:var(--text-secondary);">
+                                {% if e.sale_number %}<i class="bi bi-receipt me-1"></i>{{ e.sale_number }}{% endif %}
+                                {% if e.kind == 'Lay-by' and e.basket_total %}
+                                    · basket R {{ "%.2f"|format(e.basket_total) }} − {{ e.discount_pct|int }}%
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="text-end" style="width:170px;">
+                            <div class="fw-semibold">R {{ "%.2f"|format(e.total or 0) }}</div>
+                            <div style="font-size:12px;color:var(--text-secondary);">
+                                {% if e.monthly %}R {{ "%.2f"|format(e.monthly) }} × {{ e.term }}mo{% elif e.kind in ('Undercharge','Overcharge') %}once-off{% endif %}
+                            </div>
+                        </td>
+                        <td style="width:110px;">
+                            <span class="badge {% if e.status in ('active','pending') %}bg-success{% elif e.status in ('complete','recovered','accounted_for') %}bg-secondary{% elif e.status == 'partial' %}bg-info{% else %}bg-dark{% endif %}"
+                                  style="font-size:11px;">{{ e.status|replace('_',' ') }}</span>
+                        </td>
+                        <td style="width:60px;" class="text-end">
+                            <span style="font-size:12px;color:var(--text-secondary);">{{ (e.created_at or '')[11:16] }}</span>
+                            {% if e.expandable %}
+                            <button class="btn btn-sm btn-outline-secondary ms-1 expand-layby" data-layby-id="{{ e.plan_id }}"
+                                    title="Show basket items" style="padding:1px 7px;font-size:11px;">
+                                <i class="bi bi-chevron-down"></i>
+                            </button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% if e.expandable %}
+                    <tr class="layby-detail d-none" id="layby-detail-{{ e.plan_id }}">
+                        <td colspan="6" style="background:var(--bg-base,#0f1115);padding:10px 24px;">
+                            <div class="layby-items-target" style="font-size:13px;color:var(--text-secondary);">Loading…</div>
+                        </td>
+                    </tr>
+                    {% endif %}
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<script>
+document.querySelectorAll('.expand-layby').forEach(btn => {
+    btn.addEventListener('click', async () => {
+        const id = btn.dataset.laybyId;
+        const row = document.getElementById('layby-detail-' + id);
+        const icon = btn.querySelector('i');
+        if (!row.classList.contains('d-none')) {
+            row.classList.add('d-none');
+            icon.className = 'bi bi-chevron-down';
+            return;
+        }
+        row.classList.remove('d-none');
+        icon.className = 'bi bi-chevron-up';
+        const target = row.querySelector('.layby-items-target');
+        if (target.dataset.loaded) return;
+        try {
+            const res = await fetch(`/layby/${id}/items`, {headers: {'Accept': 'application/json'}});
+            const data = await res.json();
+            if (!data.items.length && !data.adjustments.length) {
+                target.textContent = 'No basket items recorded for this lay-by (historical import).';
+            } else {
+                let html = '';
+                if (data.items.length) {
+                    html += '<table class="table table-sm mb-2" style="font-size:12px;"><thead><tr>' +
+                            '<th>Item</th><th class="text-end">Unit</th><th class="text-end">Qty</th><th class="text-end">Line total</th></tr></thead><tbody>';
+                    for (const it of data.items) {
+                        html += `<tr><td>${escHtml(it.description)}</td><td class="text-end">R ${it.unit_price.toFixed(2)}</td>` +
+                                `<td class="text-end">${it.quantity}</td><td class="text-end">R ${it.line_total.toFixed(2)}</td></tr>`;
+                    }
+                    html += '</tbody></table>';
+                }
+                if (data.adjustments.length) {
+                    html += '<div class="fw-semibold mb-1" style="font-size:12px;">Adjustments</div>';
+                    for (const a of data.adjustments) {
+                        html += `<div style="font-size:12px;">${(a.created_at || '').slice(0,10)} — R ${a.amount.toFixed(2)}${a.note ? ' · ' + escHtml(a.note) : ''}</div>`;
+                    }
+                }
+                target.innerHTML = html;
+            }
+            target.dataset.loaded = '1';
+        } catch (err) {
+            target.textContent = 'Could not load items.';
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,191 @@
+{% extends 'cash_base.html' %}
+{% block title %}Cash sales — {{ month_name }} {{ year }}{% endblock %}
+{% block topright %}<span class="cr-context"><i class="bi bi-cash-stack"></i>Cash sales</span>{% endblock %}
+
+{% block content %}
+<header class="cs-page-head">
+    <div>
+        <p class="cash-kicker">Month-end control</p>
+        <h1>Cash sales reconciliation</h1>
+        <p>Compare Shopify cash payments with store submissions, explain exceptions, and prepare the Xero cash-split journal.</p>
+    </div>
+    <nav class="cash-page-tools" aria-label="Cash sales administration">
+        <a class="cr-navlink" href="{{ url_for('cash_home') }}"><i class="bi bi-grid-1x2-fill"></i> All stores</a>
+        <a class="cr-navlink" href="{{ url_for('cash_xero_setup') }}"><i class="bi bi-sliders"></i> Xero setup</a>
+    </nav>
+</header>
+
+<section class="cs-period" aria-labelledby="csPeriodTitle">
+    <a class="cs-period-step" href="{{ url_for('cash_sales_preview', year=prev_year, month=prev_month) }}" aria-label="Previous month">
+        <i class="bi bi-chevron-left"></i><span>Previous</span>
+    </a>
+    <div>
+        <span>Reporting month</span>
+        <h2 id="csPeriodTitle">{{ month_name }} {{ year }}</h2>
+        <small>Journal date {{ month_end }}</small>
+    </div>
+    <a class="cs-period-step is-next" href="{{ url_for('cash_sales_preview', year=next_year, month=next_month) }}" aria-label="Next month">
+        <span>Next</span><i class="bi bi-chevron-right"></i>
+    </a>
+</section>
+
+{% if is_current_month %}
+<div class="cs-notice cs-notice-info">
+    <i class="bi bi-info-circle"></i>
+    <span><strong>This month is still open.</strong> Cash-sales journals are normally prepared after month-end.</span>
+    <a href="{{ url_for('cash_sales_preview', year=prev_year, month=prev_month) }}">Review previous month</a>
+</div>
+{% endif %}
+
+<section class="cs-workflow" aria-label="Month-end workflow">
+    <div class="cs-step {{ 'is-done' if active_store_count else 'is-current' }}">
+        <span class="cs-step-number">{% if active_store_count %}<i class="bi bi-check-lg"></i>{% else %}1{% endif %}</span>
+        <span><strong>1. Store capture</strong><small>{{ active_store_count }} stores · R {{ total|rands }}</small></span>
+    </div>
+    <div class="cs-step{% if shopify_upload %} is-done{% else %} is-current{% endif %}">
+        <span class="cs-step-number">{% if shopify_upload %}<i class="bi bi-check-lg"></i>{% else %}2{% endif %}</span>
+        <span><strong>2. Shopify upload</strong><small>{{ shopify_upload.row_count ~ ' cash rows loaded' if shopify_upload else 'Monthly CSV required' }}</small></span>
+    </div>
+    <div class="cs-step{% if comparison_ready %} is-done{% elif shopify_upload %} is-current{% endif %}">
+        <span class="cs-step-number">{% if comparison_ready %}<i class="bi bi-check-lg"></i>{% else %}3{% endif %}</span>
+        <span><strong>3. Resolve differences</strong><small>{% if unmatched_shopify %}{{ unmatched_shopify|length }} locations unresolved{% elif missing_reason_count %}{{ missing_reason_count }} reasons outstanding{% elif shopify_upload %}Review complete{% else %}Waiting for upload{% endif %}</small></span>
+    </div>
+    <div class="cs-step{% if xero_ready and comparison_ready %} is-done{% elif comparison_ready %} is-current{% endif %}">
+        <span class="cs-step-number">{% if xero_ready and comparison_ready %}<i class="bi bi-check-lg"></i>{% else %}4{% endif %}</span>
+        <span><strong>4. Export</strong><small>{{ 'Files ready' if xero_ready and comparison_ready else 'Complete checks first' }}</small></span>
+    </div>
+</section>
+
+<section class="cs-metrics" aria-label="Cash sales totals">
+    <div><span>Cash Sheet</span><strong>R {{ total|rands }}</strong><small>{{ active_store_count }} stores with sales</small></div>
+    <div><span>Shopify net</span><strong>{% if shopify_upload %}R {{ shopify_totals.net|rands }}{% else %}—{% endif %}</strong><small>{{ shopify_totals.transactions if shopify_upload else 0 }} transactions, all locations{% if shopify_totals.outside_count %} · R {{ shopify_totals.outside|rands }} not in the store comparison{% endif %}</small></div>
+    <div class="{% if shopify_upload and shopify_totals.diff|abs > 1 %}is-alert{% endif %}"><span>Difference</span><strong>{% if shopify_upload %}R {{ shopify_totals.diff|rands }}{% else %}—{% endif %}</strong><small>Cash Sheet − all Shopify cash</small></div>
+    <div class="{% if unmapped_count or unmatched_shopify or missing_reason_count %}is-alert{% else %}is-ready{% endif %}">
+        <span>Readiness</span>
+        <strong>{% if unmapped_count or unmatched_shopify or missing_reason_count %}Action needed{% elif shopify_upload %}Ready{% else %}Awaiting CSV{% endif %}</strong>
+        <small>{% if not shopify_upload %}Upload this month's Shopify CSV{% elif unmapped_count %}{{ unmapped_count }} Xero mappings{% elif unmatched_shopify %}{{ unmatched_shopify|length }} Shopify locations{% elif missing_reason_count %}{{ missing_reason_count }} variance reasons{% else %}No blocking issues{% endif %}</small>
+    </div>
+</section>
+
+<section class="cs-stage" aria-labelledby="csShopifyTitle">
+    <div class="cs-section-head">
+        <div>
+            <p class="cash-kicker">Reconciliation</p>
+            <h2 id="csShopifyTitle">Shopify comparison</h2>
+            <p>Upload the retail-payments CSV exported for <strong>{{ month_name }} {{ year }}</strong>. Only cash-gateway rows are included.</p>
+        </div>
+        {% if shopify_upload %}
+        <span class="cs-file-status"><i class="bi bi-check-circle-fill"></i><span><strong>{{ shopify_upload.source_filename }}</strong><small>{{ shopify_upload.row_count }} rows · {{ shopify_upload.uploaded_at }}</small></span></span>
+        {% endif %}
+    </div>
+
+    <form method="post" enctype="multipart/form-data" action="{{ url_for('cash_sales_shopify_upload', year=year, month=month) }}" class="cs-upload-panel">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label for="shopifyCsv"><span><i class="bi bi-filetype-csv"></i></span><strong>{{ 'Replace monthly Shopify CSV' if shopify_upload else 'Choose monthly Shopify CSV' }}</strong><small>CSV · maximum 10 MB · selected month: {{ month_name }} {{ year }}</small></label>
+        <input class="cr-input" id="shopifyCsv" type="file" name="shopify_csv" accept=".csv,text/csv" required>
+        {% if shopify_upload %}
+        <label class="cs-replace-label"><input type="checkbox" name="confirm_replace" value="1" required> I understand this replaces the existing {{ month_name }} upload</label>
+        {% endif %}
+        <button class="cr-btn" type="submit"><i class="bi bi-upload"></i> {{ 'Replace CSV' if shopify_upload else 'Upload and compare' }}</button>
+    </form>
+
+    {% if unmatched_shopify %}
+    <div class="cs-task-panel" role="alert">
+        <div class="cs-task-intro"><i class="bi bi-signpost-split"></i><span><strong>Resolve {{ unmatched_shopify|length }} Shopify location{{ '' if unmatched_shopify|length == 1 else 's' }}</strong><small>Each one is either unmapped or points at a store that no longer exists. Link it to a Northwind store, or exclude it if it is not a store at all.</small></span></div>
+        {% for row in unmatched_shopify %}
+        <form method="post" action="{{ url_for('cash_sales_shopify_mapping', year=year, month=month) }}" class="cs-mapping-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="shopify_location" value="{{ row.pos_location_name }}">
+            <span><strong>{{ row.pos_location_name }}</strong><small>Shopify net R {{ row.net|rands }} · {{ row.issue }}</small></span>
+            <label><span class="visually-hidden">NORTHWIND store for {{ row.pos_location_name }}</span><select class="cr-select" name="store" required><option value="">Choose NORTHWIND store…</option>{% for store in stores %}<option value="{{ store }}">{{ store }}</option>{% endfor %}</select></label>
+            <button class="cr-btn cr-btn-ghost" type="submit">Save mapping</button>
+            <button class="cr-btn cr-btn-ghost" type="submit" formnovalidate
+                    formaction="{{ url_for('cash_sales_shopify_exclude', year=year, month=month) }}"
+                    aria-label="Exclude {{ row.pos_location_name }} from the comparison — it is not a Northwind store">Not a store — exclude</button>
+        </form>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if excluded_shopify %}
+    <div class="cs-task-panel">
+        <div class="cs-task-intro"><i class="bi bi-info-circle"></i><span><strong>{{ excluded_shopify|length }} location{{ '' if excluded_shopify|length == 1 else 's' }} excluded from the {{ month_name }} {{ year }} comparison</strong><small>No NORTHWIND store can match them, so they are left out of the table below — their value is still counted in the Shopify net above and in the downloaded workbook. Exclusions apply to this month only.</small></span></div>
+        {% for row in excluded_shopify %}
+        <form method="post" action="{{ url_for('cash_sales_shopify_exclude', year=year, month=month) }}" class="cs-mapping-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="shopify_location" value="{{ row.pos_location_name }}">
+            <input type="hidden" name="restore" value="1">
+            {# An exclusion whose location is not in this month's upload still has
+               to be listed, or it would sit stored with no way to undo it. #}
+            <span><strong>{{ row.pos_location_name }}</strong><small>{% if row.absent %}Not in this month’s Shopify upload — excluded if it appears{% else %}Shopify net R {{ row.net|rands }} · {{ row.transactions }} transaction{{ '' if row.transactions == 1 else 's' }}{% endif %}</small></span>
+            <button class="cr-btn cr-btn-ghost" type="submit"
+                    aria-label="Put {{ row.pos_location_name }} back in the comparison">Include again</button>
+        </form>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if shopify_upload and comparison %}
+    <form method="post" action="{{ url_for('cash_sales_save_reasons', year=year, month=month) }}" class="cs-comparison-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="row_count" value="{{ comparison|length }}">
+        <div class="cs-table-toolbar">
+            <span><strong>{{ comparison|length }} stores compared</strong><small>Reasons are required for differences over R1.00.</small></span>
+            {% if missing_reason_count %}<span class="cs-pill is-alert"><i class="bi bi-exclamation-circle"></i>{{ missing_reason_count }} outstanding</span>{% else %}<span class="cs-pill is-ready"><i class="bi bi-check-circle"></i>Review complete</span>{% endif %}
+        </div>
+        <div class="cr-sheet-scroll">
+        <table class="cr-ledger cs-comparison-table">
+            <thead><tr><th>Shopify location</th><th>Store</th><th class="cr-num">Txns</th><th class="cr-num">Gross</th><th class="cr-num">Refunds</th><th class="cr-num">Shopify net</th><th class="cr-num">Cash Sheet</th><th class="cr-num">Diff</th><th>Reason</th></tr></thead>
+            <tbody>{% for row in comparison %}
+            <tr{% if row.needs_reason and not row.reason %} class="cs-needs-reason"{% endif %}>
+                {# display_store is the label the downloaded workbook prints, so
+                   the screen must not show a different name for the same row. #}
+                <td data-label="Shopify">{{ row.shopify_locations or '—' }}</td><td data-label="Store" class="cs-store-name">{{ row.display_store }}</td>
+                <td data-label="Transactions" class="cr-num">{{ row.transactions }}</td><td data-label="Gross" class="cr-num">R {{ row.gross|rands }}</td>
+                <td data-label="Refunds" class="cr-num">R {{ row.refunded|rands }}</td><td data-label="Shopify net" class="cr-num">R {{ row.net|rands }}</td>
+                <td data-label="Cash Sheet" class="cr-num">R {{ row.cash|rands }}</td><td data-label="Diff" class="cr-num cs-diff{% if row.needs_reason %} cs-diff-alert{% endif %}">R {{ row.diff|rands }}</td>
+                <td data-label="Reason" class="cs-reason-cell"><input type="hidden" name="store_{{ loop.index0 }}" value="{{ row.store }}"><label class="visually-hidden" for="reason{{ loop.index0 }}">Variance reason for {{ row.display_store }}</label><input class="cr-input cs-reason-input" id="reason{{ loop.index0 }}" name="reason_{{ loop.index0 }}" value="{{ row.reason }}" placeholder="{{ 'Reason required' if row.needs_reason else 'Optional note' }}"></td>
+            </tr>{% endfor %}</tbody>
+            <tfoot><tr><td>TOTAL{% if shopify_totals.outside_count %} (compared stores){% endif %}</td><td></td><td class="cr-num">{{ comparison_totals.transactions }}</td><td class="cr-num">R {{ comparison_totals.gross|rands }}</td><td class="cr-num">R {{ comparison_totals.refunded|rands }}</td><td class="cr-num">R {{ comparison_totals.net|rands }}</td><td class="cr-num">R {{ comparison_totals.cash|rands }}</td><td class="cr-num">R {{ comparison_totals.diff|rands }}</td><td></td></tr></tfoot>
+        </table>
+        </div>
+        <div class="cs-comparison-actions">
+            {% if comparison_ready %}<a class="cr-btn cr-btn-ghost" href="{{ url_for('cash_sales_recon_export', year=year, month=month) }}"><i class="bi bi-file-earmark-spreadsheet"></i> Download comparison</a>{% endif %}
+            <button class="cr-btn" type="submit"><i class="bi bi-check-lg"></i> Save reasons</button>
+        </div>
+    </form>
+    {% endif %}
+</section>
+
+<section class="cs-stage" aria-labelledby="csJournalTitle">
+    <div class="cs-section-head">
+        <div><p class="cash-kicker">Xero output</p><h2 id="csJournalTitle">Cash-split journal</h2><p>One line per mapped store, dated {{ month_end }}. Narration: <strong>{{ narration }}</strong>. The <strong>{{ contra_code }}</strong> control row remains blank by design.</p></div>
+        <div class="cs-export-actions">
+            {% if xero_ready %}<a class="cr-btn" href="{{ url_for('cash_sales_mj_export', year=year, month=month) }}"><i class="bi bi-download"></i> Download Xero CSV</a>
+            {% else %}<span class="cr-btn cr-btn-disabled" aria-disabled="true"><i class="bi bi-lock"></i> Xero journal needs mapping</span>{% endif %}
+        </div>
+    </div>
+    {% if unmapped_count %}<div class="cs-notice cs-notice-warning"><i class="bi bi-exclamation-triangle"></i><span><strong>{{ unmapped_count }} cash account mapping{{ '' if unmapped_count == 1 else 's' }} missing.</strong> The Xero journal stays unavailable until the POS cash code is added.</span><a href="{{ url_for('cash_xero_setup') }}">Open Xero setup</a></div>{% endif %}
+    <div class="cs-table-toolbar">
+        <span><strong>{{ rows|length }} journal lines</strong><small>{{ zero_store_count }} zero-value stores are retained in the export.</small></span>
+        {% if zero_store_count %}<label class="cs-zero-toggle"><input type="checkbox" data-show-zero-stores> Show zero-value stores</label>{% endif %}
+    </div>
+    {% if rows %}
+    <div class="cr-sheet-scroll"><table class="cr-ledger cs-journal-table" id="csTable">
+        <thead><tr><th>Store</th><th>Journal label</th><th>Cash code</th><th class="cr-num">Cash Sheet</th></tr></thead>
+        <tbody>{% for r in rows %}
+            <tr class="cs-row{% if not r.sales %} is-zero{% endif %}" data-zero-store="{{ 'true' if not r.sales else 'false' }}">
+                <td data-label="Store"><button type="button" class="cash-disclosure" data-cash-sales-toggle aria-expanded="false" aria-controls="sales-detail-{{ loop.index }}" aria-label="Show cash sales for {{ r.store }}"><i class="bi bi-chevron-right cs-chev" aria-hidden="true"></i><span>{{ r.store }}</span></button><small>{{ r.entries|length }} sale{{ '' if r.entries|length == 1 else 's' }}</small></td>
+                <td data-label="Journal label">{{ r.tracking_name }}</td><td data-label="Cash code">{% if r.unmapped %}<span class="cs-unmapped">Not mapped</span>{% else %}<code>{{ r.store_code }}</code>{% endif %}</td><td data-label="Cash Sheet" class="cr-num">R {{ r.sales|rands }}</td>
+            </tr>
+            <tr class="cs-detail" id="sales-detail-{{ loop.index }}" data-zero-detail="{{ 'true' if not r.sales else 'false' }}" hidden><td colspan="4">
+                {% if r.entries %}<div class="cs-detail-grid"><span>Date</span><span>Sale / receipt no.</span><span>Amount</span>{% for e in r.entries %}<span>{{ e.date }}</span><span>{{ e.sale_no or '—' }}</span><span>R {{ e.amount|rands }}</span>{% endfor %}</div>{% else %}<p class="cs-empty-detail">No cash-sale entries recorded for this store.</p>{% endif %}
+            </td></tr>
+        {% endfor %}</tbody>
+        <tfoot><tr><td>TOTAL</td><td></td><td></td><td class="cr-num">R {{ total|rands }}</td></tr></tfoot>
+    </table></div>
+    {% else %}<div class="cash-empty"><i class="bi bi-cash-stack"></i><strong>No cash sales captured</strong><span>Stores have not recorded cash-sale entries for {{ month_name }} {{ year }}.</span></div>{% endif %}
+</section>
+
+<script src="{{ url_for('static', filename='cash-sales.js') }}"></script>
+{% endblock %}

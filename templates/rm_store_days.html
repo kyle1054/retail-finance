@@ -1,0 +1,77 @@
+{# Read-only inline fragment injected under a store's row on the RM dashboard.
+   No page navigation, no journal/edit/add/delete controls. Day-row toggling is
+   handled by rm_dashboard.html's delegated JS (injected <script> won't run).
+   When include_sales is False: hide the In column, data.total_in, day.in, and
+   every income entry. #}
+{% set cols = 8 if include_sales else 7 %}
+{% if data.days %}
+<div class="rm-days-summary">
+    <div>
+        Opening <strong>R {{ data.opening|rands }}</strong>
+        &nbsp;→&nbsp; Closing <strong class="{% if data.closing < 0 %}is-negative{% endif %}">R {{ data.closing|rands }}</strong>
+        {% if include_sales %}<span>·</span> In <em class="is-income">R {{ data.total_in|rands }}</em>{% endif %}
+        <span>·</span> Exp <em class="is-expense">R {{ data.total_expense|rands }}</em>
+        <span>·</span> Banked R {{ data.total_banked|rands }}
+        {% if data.total_adjust %}<span>·</span> Adjust <em class="is-expense">R {{ data.total_adjust|rands }}</em>{% endif %}
+    </div>
+    <span class="rm-days-hint"><i class="bi bi-hand-index-thumb"></i> Select a day for entries</span>
+</div>
+<div class="rm-day-table-wrap">
+<table class="rm-day-table">
+    <thead>
+        <tr>
+            <th scope="col">Day</th>
+            <th scope="col">Opening</th>
+            {% if include_sales %}<th scope="col">In</th>{% endif %}
+            <th scope="col">Expenses</th>
+            <th scope="col">Banked</th>
+            <th scope="col">Adjust</th>
+            <th scope="col">Closing</th>
+            <th scope="col">Entries</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for day in data.days %}
+        {% set day_label = day.date[8:10] ~ '/' ~ day.date[5:7] ~ '/' ~ day.date[0:4] %}
+        <tr class="day-row">
+            <td data-label="Day">
+                <button type="button" class="rm-row-toggle" aria-expanded="false" aria-label="Show entries for {{ day_label }}">
+                    <i class="bi bi-chevron-right daychev" aria-hidden="true"></i><span>{{ day_label }}</span>
+                </button>
+            </td>
+            <td data-label="Opening">R {{ day.day_opening|rands }}</td>
+            {% if include_sales %}<td data-label="In" class="is-income">R {{ day['in']|rands }}</td>{% endif %}
+            <td data-label="Expenses" class="is-expense">R {{ day.expense|rands }}</td>
+            <td data-label="Banked">R {{ day.banked|rands }}</td>
+            <td data-label="Adjust" class="is-expense">{% if day.adjust %}R {{ day.adjust|rands }}{% else %}<span class="rm-empty">—</span>{% endif %}</td>
+            <td data-label="Closing" class="is-strong {% if day.day_closing < 0 %}is-negative{% endif %}">R {{ day.day_closing|rands }}</td>
+            <td data-label="Entries">{{ day.count }}</td>
+        </tr>
+        <tr class="day-detail" hidden>
+            <td colspan="{{ cols }}">
+                <table class="rm-entry-table" aria-label="Entries for {{ day_label }}">
+                    <thead><tr><th scope="col">Description</th>{% if include_sales %}<th scope="col">In</th>{% endif %}<th scope="col">Expense</th></tr></thead>
+                    <tbody>
+                        {% for e in day.entries %}
+                        {% if include_sales or e.kind != 'income' %}
+                        <tr>
+                            <td data-label="Description">
+                                <strong>{{ e.description }}</strong>
+                                {% if e.note %}<small>{{ e.note }}</small>{% endif %}
+                            </td>
+                            {% if include_sales %}<td data-label="In" class="is-income">{% if e.income is not none %}R {{ e.income|rands }}{% else %}—{% endif %}</td>{% endif %}
+                            <td data-label="Expense" class="is-expense">{% if e.expense is not none %}R {{ e.expense|rands }}{% else %}—{% endif %}</td>
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% else %}
+<div class="rm-empty-state"><i class="bi bi-calendar-x"></i> No entries in this range.</div>
+{% endif %}

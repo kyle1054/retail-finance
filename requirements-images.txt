@@ -1,0 +1,15 @@
+# Receipt image handling: thumbnails, EXIF-orientation correction, and HEIC
+# (what an iPhone actually uploads) converted to JPEG.
+#
+# Optional, and deliberately kept out of requirements.txt. Pillow is imported
+# inside the function that needs it, not at import time, so without these the
+# app runs and every other feature works — an uploaded HEIC is simply rejected
+# with a message rather than converted, and the four tests in
+# tests/test_cc_heic.py that need real pixels skip.
+#
+# They are separate because these two wheels are the only thing in the project
+# that requires Python 3.10+. Keeping them here means `pip install -r
+# requirements.txt` works on 3.9 too, which is what the rest of the code
+# supports.
+Pillow==12.3.0
+pillow-heif==1.5.0

@@ -1,0 +1,18 @@
+# Runtime
+Flask==3.1.3
+Flask-WTF==1.2.1
+Werkzeug==3.1.8
+Jinja2==3.1.6
+gunicorn==23.0.0
+
+# Excel import/export (payroll sheets, finance journals, storefront comparisons)
+openpyxl==3.1.5
+
+# Tests
+pytest==8.4.2
+
+# Nothing here talks to a third-party service, and there is no optional client
+# to add: receipt extraction and account coding are local (see
+# northwind/cards/ai.py).
+#
+# Image handling is the one genuinely optional piece — see requirements-images.txt.

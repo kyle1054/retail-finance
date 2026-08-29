@@ -1,0 +1,101 @@
+{% extends "portal_base.html" %}
+{% block title %}Request {{ kind_label|lower }} — NORTHWIND{% endblock %}
+
+{% block breadcrumb %}
+    <nav class="crumbs">
+        <span class="crumb-left">
+            <a href="{{ url_for('portal_store_employee', emp_id=emp.id) }}" title="Back to your deductions">
+                <i class="bi bi-chevron-left"></i> {{ emp.full_name }}
+            </a>
+            <span class="sep">/</span>
+            <span class="current">Request {{ kind_label|lower }}</span>
+        </span>
+    </nav>
+{% endblock %}
+
+{% block content %}
+    <form method="post" class="portal-card req-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="ded-head">
+            <i class="bi {{ 'bi-bag-fill' if kind == 'uniform' else 'bi-cart-fill' }}"></i>
+            <span class="ded-cat">{{ kind_label }} request for {{ emp.full_name }}</span>
+        </div>
+        <p class="req-lede">
+            {% if kind == 'uniform' %}
+                One line per item. The <strong>SKU is on the price tag</strong> — please copy it
+                across, it's what the office orders against. Leave the price blank if you don't know it.
+            {% else %}
+                One line per item you'd like on lay-by. The <strong>SKU is on the price tag</strong> —
+                please copy it across. Your staff discount is added when we set it up, so use
+                the normal shop price.
+            {% endif %}
+        </p>
+
+        {#- Compact ROWS, not five tall boxes: staff asking for two things shouldn't
+            have to scroll a tablet screen to reach the Send button. The captions
+            show once as a header on a wide screen, and inside each field on a
+            phone (where the row wraps). -#}
+        <div class="req-lines">
+            <div class="req-line-head" aria-hidden="true">
+                <span>Item</span><span>SKU</span><span>Size</span><span>Qty</span><span>Price</span>
+            </div>
+            {% for i in item_rows %}
+            <div class="req-line{% if not loop.first %} is-extra{% endif %}">
+                <label class="req-cell req-cell-item">
+                    <span class="req-cap">Item {{ loop.index }}</span>
+                    <input type="text" name="item_desc_{{ i }}" maxlength="200"
+                           value="{{ form.get('item_desc_' ~ i, '') }}"
+                           placeholder="{{ 'e.g. Ladies trainer, sage' if loop.first else 'Another item (optional)' }}"
+                           {% if loop.first %}required{% endif %}>
+                </label>
+                <label class="req-cell req-cell-sku">
+                    <span class="req-cap">SKU</span>
+                    <input type="text" name="item_sku_{{ i }}" maxlength="60" inputmode="numeric"
+                           value="{{ form.get('item_sku_' ~ i, '') }}" placeholder="660200…"
+                           {% if loop.first %}required{% endif %}>
+                </label>
+                <label class="req-cell req-cell-size">
+                    <span class="req-cap">Size</span>
+                    <input type="text" name="item_size_{{ i }}" maxlength="40"
+                           value="{{ form.get('item_size_' ~ i, '') }}" placeholder="UK5">
+                </label>
+                <label class="req-cell req-cell-qty">
+                    <span class="req-cap">Qty</span>
+                    <input type="number" name="item_qty_{{ i }}" min="1" max="99"
+                           value="{{ form.get('item_qty_' ~ i, 1) }}">
+                </label>
+                <label class="req-cell req-cell-price">
+                    <span class="req-cap">Price</span>
+                    <input type="number" name="item_price_{{ i }}" step="0.01" min="0"
+                           value="{{ form.get('item_price_' ~ i, '') }}" placeholder="R">
+                </label>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="req-two">
+            <div class="req-field">
+                <label for="term_months">Pay it off over</label>
+                <select id="term_months" name="term_months">
+                    <option value="">Let the office decide</option>
+                    {% for m in range(1, max_term + 1) %}
+                    <option value="{{ m }}" {% if form.get('term_months')|string == m|string %}selected{% endif %}>{{ m }} month{{ '' if m == 1 else 's' }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="req-field">
+                <label for="notes">Anything we should know?</label>
+                <input type="text" id="notes" name="notes" maxlength="1000"
+                       value="{{ form.get('notes', '') }}"
+                       placeholder="Optional — colour, or when you need it by">
+            </div>
+        </div>
+
+        <div class="req-send">
+            <button type="submit" class="req-submit">
+                <i class="bi bi-send"></i> Send request
+            </button>
+            <p class="req-foot">The office sees this straight away. The answer comes back on this page.</p>
+        </div>
+    </form>
+{% endblock %}

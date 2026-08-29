@@ -1,0 +1,638 @@
+{% extends 'base.html' %}
+{% block title %}{{ month_full }} {{ year }} — Northwind Deductions{% endblock %}
+{% block page_title %}Monthly Payroll{% endblock %}
+
+{% block content %}
+<link href="{{ url_for('static', filename='monthly-refresh.css') }}" rel="stylesheet">
+
+{% set pending_rows = data | rejectattr('all_done') | list %}
+{% set pending_count = pending_rows | length %}
+
+{% if is_locked %}
+<div class="alert alert-danger payroll-lock-notice d-flex align-items-center justify-content-between mb-4 border-0">
+    <div class="d-flex align-items-center gap-3">
+        <div style="width:40px;height:40px;border-radius:20px;display:flex;align-items:center;justify-content:center;background:rgba(168,71,47,0.1);color:#823721;flex-shrink:0;">
+            <i class="bi bi-lock-fill" style="font-size:18px;"></i>
+        </div>
+        <div>
+            <div class="fw-bold" style="color:#5e2718;font-size:14px;text-align:left;">Locked Payroll Period</div>
+            <div style="color:#7f1d1d;font-size:12px;text-align:left;">This month's payroll is locked. Retroactive adjustments, payments, or syncs are disabled.</div>
+        </div>
+    </div>
+    <form method="post" action="{{ url_for(current_workspace.unlock_ep, year=year, month=month) }}">
+        <input type="hidden" name="cat" value="{{ cat }}">
+        <input type="hidden" name="store" value="{{ store_filter }}">
+        <button type="submit" class="btn btn-outline-danger btn-sm" style="font-size:12px;font-weight:600;border-radius:6px;padding: 5px 12px;">
+            <i class="bi bi-unlock-fill me-1"></i>Unlock Month
+        </button>
+    </form>
+</div>
+{% endif %}
+
+<!-- Guided payroll command centre. The numbered stages make the safe order of
+     operations visible without changing any of the existing endpoints. -->
+<section class="payroll-command mb-3" aria-label="Payroll workflow and actions">
+<header class="payroll-run-header">
+    <div>
+        <span class="payroll-eyebrow">Current payroll run</span>
+        <h1>{{ month_full }} {{ year }}</h1>
+        <p>
+            {% if is_locked %}
+            This period is complete and locked for payroll.
+            {% elif pending_count %}
+            Process {{ pending_count }} employee{{ '' if pending_count == 1 else 's' }}, then export and close the period.
+            {% else %}
+            All visible deductions are processed. Export the sheet and close the period when ready.
+            {% endif %}
+        </p>
+    </div>
+    <div class="payroll-run-total">
+        <span>Total this run</span>
+        <strong>R {{ grand_total|rands }}</strong>
+        <small>{{ pending_count }} need{{ '' if pending_count != 1 else 's' }} action</small>
+    </div>
+</header>
+
+<ol class="payroll-steps" aria-label="Payroll workflow">
+    <li class="payroll-step done" data-step="1">
+        <span>Review</span><small>Amounts ready</small>
+    </li>
+    <li class="payroll-step {% if pending_count %}current{% else %}done{% endif %}" data-step="2">
+        <span>Process</span><small>{{ pending_count }} remaining</small>
+    </li>
+    <li class="payroll-step {% if is_locked %}done{% elif not pending_count %}current{% endif %}" data-step="3">
+        <span>Export</span><small>Payroll sheet</small>
+    </li>
+    <li class="payroll-step {% if is_locked %}done{% endif %}" data-step="4">
+        <span>Close</span><small>Lock period</small>
+    </li>
+</ol>
+
+<!-- Month navigation -->
+<div class="month-nav mb-3">
+    <div class="payroll-period">
+        <a href="{{ url_for(current_workspace.monthly_view_ep, year=prev_year, month=prev_month, cat=cat) }}" class="btn btn-outline-secondary btn-sm" aria-label="Previous month">
+            <i class="bi bi-chevron-left"></i>
+        </a>
+        <span class="month-nav-title">{{ month_full }} {{ year }}</span>
+        <a href="{{ url_for(current_workspace.monthly_view_ep, year=next_year, month=next_month, cat=cat) }}" class="btn btn-outline-secondary btn-sm" aria-label="Next month">
+            <i class="bi bi-chevron-right"></i>
+        </a>
+    </div>
+    <div class="payroll-filters">
+        <!-- Live search -->
+        <div class="input-group input-group-sm">
+            <span class="input-group-text" style="background:#f8fafc;"><i class="bi bi-search" style="font-size:11px;"></i></span>
+            <input type="text" id="monthlySearch" class="form-control" placeholder="Search employee…" style="font-size:12px;">
+        </div>
+        <!-- Store filter -->
+        <form method="get" class="d-flex gap-2 align-items-center monthly-store-filter">
+            <input type="hidden" name="cat" value="{{ cat }}">
+            <select name="store" class="form-select form-select-sm" style="width:auto;font-size:13px;" data-submit-on-change>
+                <option value="">All Stores</option>
+                {% for s in all_stores %}
+                    <option value="{{ s }}" {% if s == store_filter %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+    <div class="payroll-actions">
+        <div class="payroll-action-group payroll-process-actions">
+        <span class="payroll-action-label">Process deductions</span>
+        <!-- Tick a chosen subset (per-row checkboxes) -->
+        {% if not is_locked and cat != 'invoices' %}
+        <form id="tickSelectedForm" method="post" action="{{ url_for(current_workspace.pay_selected_ep, year=year, month=month) }}">
+            <input type="hidden" name="cat" value="{{ cat }}">
+            <input type="hidden" name="store" value="{{ store_filter }}">
+            <button type="submit" id="tickSelectedBtn" class="btn btn-outline-success btn-sm px-3" disabled>
+                <i class="bi bi-check2-square me-1"></i>Tick selected (<span id="tickSelectedCount">0</span>)
+            </button>
+        </form>
+        {% endif %}
+        <!-- Bulk pay-all -->
+        {% if not is_locked %}
+        <form id="payAllForm" method="post" action="{{ url_for(current_workspace.pay_all_ep, year=year, month=month) }}">
+            <input type="hidden" name="cat" value="{{ cat }}">
+            <input type="hidden" name="store" value="{{ store_filter }}">
+            {% if cat == 'layby' %}
+            <button type="submit" class="btn btn-teal btn-sm px-3" style="background:#235e54;border:none;color:#fff;">
+                <i class="bi bi-cart-check me-1"></i>Pay All Lay-bys{% if store_filter %} ({{ store_filter }}){% endif %}
+            </button>
+            {% elif cat == 'uniform' %}
+            <button type="submit" class="btn btn-warning btn-sm px-3 text-white" style="background:#8a5220;border:none;">
+                <i class="bi bi-bag-check me-1"></i>Pay All Uniforms{% if store_filter %} ({{ store_filter }}){% endif %}
+            </button>
+            {% elif cat == 'undercharges' %}
+            <button type="submit" class="btn btn-danger btn-sm px-3" style="background:#823721;border:none;">
+                <i class="bi bi-exclamation-circle me-1"></i>Pay All Undercharges{% if store_filter %} ({{ store_filter }}){% endif %}
+            </button>
+            {% else %}
+            <button type="submit" class="btn btn-success btn-sm px-3">
+                <i class="bi bi-check2-all me-1"></i>Pay All{% if store_filter %} ({{ store_filter }}){% endif %}
+            </button>
+            {% endif %}
+        </form>
+        {% else %}
+        <button class="btn btn-outline-secondary btn-sm px-3" disabled style="cursor:not-allowed;">
+            <i class="bi bi-lock-fill me-1"></i>Period Locked
+        </button>
+        {% endif %}
+        </div>
+        <div class="payroll-action-group payroll-finish-actions">
+        <span class="payroll-action-label">Finish period</span>
+        <a href="{{ url_for(current_workspace.monthly_export_ep, year=year, month=month, cat=cat, store=store_filter) }}" class="btn btn-primary btn-sm px-3">
+            <i class="bi bi-download me-1"></i>Export Excel
+        </a>
+        {% if not is_locked %}
+        <form method="post" action="{{ url_for(current_workspace.lock_ep, year=year, month=month) }}"
+              data-confirm="Lock {{ month_full }} {{ year }} payroll? Ticking and syncing will be disabled.">
+            <input type="hidden" name="cat" value="{{ cat }}">
+            <input type="hidden" name="store" value="{{ store_filter }}">
+            <button type="submit" class="btn btn-outline-danger btn-sm px-3">
+                <i class="bi bi-lock-fill me-1"></i>Lock Month
+            </button>
+        </form>
+        {% endif %}
+        </div>
+    </div>
+</div>
+</section>
+
+<!-- Category tabs -->
+<div class="cat-tabs mb-3">
+    <a href="{{ url_for(current_workspace.monthly_view_ep, year=year, month=month, cat='all') }}"
+       class="cat-tab {% if cat == 'all' %}active{% endif %}">
+        <i class="bi bi-grid-3x3 me-1"></i>All Deductions
+        <span class="cat-count">{{ data|length }}</span>
+    </a>
+    {% if 'uniforms' in current_workspace.features %}
+    <a href="{{ url_for(current_workspace.monthly_view_ep, year=year, month=month, cat='uniform') }}"
+       class="cat-tab cat-uniform {% if cat == 'uniform' %}active{% endif %}">
+        <i class="bi bi-bag me-1"></i>Staff Uniform
+        <span class="cat-count">{{ data|selectattr('uniform_total', '>', 0)|list|length }}</span>
+    </a>
+    {% endif %}
+    <a href="{{ url_for(current_workspace.monthly_view_ep, year=year, month=month, cat='layby') }}"
+       class="cat-tab cat-layby {% if cat == 'layby' %}active{% endif %}">
+        <i class="bi bi-cart me-1"></i>Lay-by
+        <span class="cat-count">{{ data|selectattr('layby_total', '>', 0)|list|length }}</span>
+    </a>
+    {% if 'undercharges' in current_workspace.features %}
+    <a href="{{ url_for(current_workspace.monthly_view_ep, year=year, month=month, cat='undercharges') }}"
+       class="cat-tab cat-undercharges {% if cat == 'undercharges' %}active{% endif %}">
+        <i class="bi bi-exclamation-circle me-1"></i>Undercharges
+        <span class="cat-count">{{ data|selectattr('undercharge_total', '>', 0)|list|length }}</span>
+    </a>
+    {% endif %}
+    {% if 'uniforms' in current_workspace.features %}
+    <a href="{{ url_for(current_workspace.monthly_view_ep, year=year, month=month, cat='invoices') }}"
+       class="cat-tab cat-invoices {% if cat == 'invoices' %}active{% endif %}">
+        <i class="bi bi-receipt me-1"></i>By Invoice
+        <span class="cat-count">{{ invoice_data|length }}</span>
+    </a>
+    {% endif %}
+</div>
+
+<!-- Summary strip -->
+<div class="payroll-summary-grid mb-3" aria-label="Payroll totals">
+    <div class="payroll-summary-card payroll-summary-total">
+        <div class="label">Total deductions</div>
+        <div class="value">R {{ grand_total|rands }}</div>
+        <small>{{ data|length }} employee{{ '' if data|length == 1 else 's' }} in this view</small>
+    </div>
+    {% if cat == 'all' or cat == 'uniform' %}
+    <div class="payroll-summary-card payroll-summary-uniform">
+            <div class="label"><span class="payroll-summary-dot"></span>Uniform</div>
+            <div class="value">R {{ total_uniform|rands }}</div>
+    </div>
+    {% endif %}
+    {% if cat == 'all' or cat == 'layby' %}
+    <div class="payroll-summary-card payroll-summary-layby">
+            <div class="label"><span class="payroll-summary-dot"></span>Lay-by</div>
+            <div class="value">R {{ total_layby|rands }}</div>
+    </div>
+    {% endif %}
+    {% if cat == 'all' or cat == 'undercharges' %}
+    <div class="payroll-summary-card payroll-summary-undercharges">
+            <div class="label"><span class="payroll-summary-dot"></span>Undercharges</div>
+            <div class="value">R {{ total_undercharges|rands }}</div>
+    </div>
+    {% endif %}
+</div>
+
+{% if cat == 'invoices' %}
+<!-- ── By Invoice view ─────────────────────────────────────────────────── -->
+<div class="card mb-3">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>
+            <i class="bi bi-receipt me-2" style="color:#534877;"></i>
+            Uniform Deductions by Sale Number — {{ month_full }} {{ year }}
+        </span>
+        <span style="font-size:12px;color:var(--text-secondary);">
+            Total to allocate: <strong style="color:#534877;">R {{ "%.2f"|format(invoice_total) }}</strong>
+        </span>
+    </div>
+    <div class="table-responsive">
+        <table class="table mb-0 align-middle" id="invoiceTable">
+            <thead>
+                <tr>
+                    <th style="width:24px;"></th>
+                    <th>Sale Number</th>
+                    <th>Store</th>
+                    <th style="text-align:center;">Staff</th>
+                    <th style="text-align:right;">{{ month_full }} Deduction</th>
+                    <th style="width:40px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for inv in invoice_data %}
+                <tr class="invoice-row" data-so="{{ inv.sale_number }}">
+                    <td style="color:#534877;font-size:13px;">
+                        <button type="button" class="invoice-toggle-button"
+                                data-invoice-toggle aria-expanded="false"
+                                aria-controls="detail-{{ loop.index }}"
+                                aria-label="Show employees for invoice {{ inv.sale_number }}">
+                            <i class="bi bi-chevron-right toggle-icon" aria-hidden="true"></i>
+                        </button>
+                    </td>
+                    <td>
+                        <span class="fw-semibold" style="font-family:monospace;font-size:13px;color:#534877;">{{ inv.sale_number }}</span>
+                    </td>
+                    <td style="font-size:13px;color:var(--text-secondary);">{{ inv.store }}</td>
+                    <td style="text-align:center;">
+                        <span class="badge" style="background:rgba(107,92,168,.12);color:#534877;font-size:11px;">{{ inv.emp_count }}</span>
+                    </td>
+                    <td style="text-align:right;">
+                        <span class="fw-bold" style="font-size:15px;">R {{ "%.2f"|format(inv.monthly_total) }}</span>
+                    </td>
+                    <td style="text-align:right;">
+                        <button type="button" class="btn btn-sm" style="padding:2px 7px;font-size:11px;background:rgba(107,92,168,.1);color:#534877;border:1px solid rgba(107,92,168,.25);"
+                                data-invoice-copy data-so="{{ inv.sale_number }}" data-amount="{{ inv.monthly_total }}"
+                                title="Copy to clipboard">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </td>
+                </tr>
+                <!-- Employee breakdown (hidden by default) -->
+                <tr class="invoice-detail d-none" id="detail-{{ loop.index }}">
+                    <td></td>
+                    <td colspan="5" style="padding:0 0 8px 28px;">
+                        <table class="table table-sm mb-0" style="font-size:12px;background:transparent;">
+                            <tbody>
+                                {% for emp in inv.employees %}
+                                <tr style="border:none;">
+                                    <td style="border:none;padding:2px 8px;">
+                                        <a href="{{ url_for(current_workspace.employee_detail_ep, emp_id=emp.id) }}"
+                                           class="text-decoration-none" style="color:var(--text-primary);">
+                                            {{ emp.name }}
+                                        </a>
+                                    </td>
+                                    <td style="border:none;padding:2px 8px;text-align:right;color:#8a5220;font-weight:600;">
+                                        R {{ "%.2f"|format(emp.amount) }}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" class="text-center text-muted py-4">No uniform deductions due this month.</td></tr>
+                {% endfor %}
+            </tbody>
+            {% if invoice_data %}
+            <tfoot>
+                <tr class="totals-row">
+                    <td colspan="4"><strong>TOTAL — {{ invoice_data|length }} invoice(s)</strong></td>
+                    <td style="text-align:right;font-weight:800;font-size:15px;color:#534877;">R {{ "%.2f"|format(invoice_total) }}</td>
+                    <td>
+                        <button type="button" class="btn btn-sm" style="padding:2px 7px;font-size:11px;background:rgba(107,92,168,.1);color:#534877;border:1px solid rgba(107,92,168,.25);"
+                                data-copy-all-invoices title="Copy all to clipboard">
+                            <i class="bi bi-clipboard-check"></i>
+                        </button>
+                    </td>
+                </tr>
+            </tfoot>
+            {% endif %}
+        </table>
+    </div>
+</div>
+{% else %}
+<!-- Main table -->
+<div class="card payroll-ledger">
+    <div class="table-responsive">
+        <table class="table mb-0 monthly-data-table">
+            <thead>
+                <tr>
+                    <th style="width:34px;text-align:center;">
+                        {% if not is_locked %}
+                        <label class="monthly-check-target" title="Select all shown">
+                            <input type="checkbox" id="mtickAll" class="form-check-input">
+                            <span class="visually-hidden">Select all shown employees</span>
+                        </label>
+                        {% else %}#{% endif %}
+                    </th>
+                    <th>Employee</th>
+                    <th>Store</th>
+                    {% if cat == 'all' or cat == 'uniform' %}
+                    <th style="text-align:right;">
+                        <span style="color:#8a5220;"><i class="bi bi-bag me-1"></i>Uniform</span>
+                    </th>
+                    {% endif %}
+                    {% if cat == 'all' or cat == 'layby' %}
+                    <th style="text-align:right;">
+                        <span style="color:#235e54;"><i class="bi bi-cart me-1"></i>Lay-by</span>
+                    </th>
+                    {% endif %}
+                    {% if cat == 'all' or cat == 'undercharges' %}
+                    <th style="text-align:right;">
+                        <span style="color:#823721;"><i class="bi bi-exclamation-circle me-1"></i>Undercharges</span>
+                    </th>
+                    {% endif %}
+                    {% if cat == 'all' %}
+                    <th style="text-align:right;">Total</th>
+                    {% endif %}
+                    <th style="text-align:center;width:90px;">Paid</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set ns = namespace(current_store='', row=0, su=0, sl=0, suc=0) %}
+                {% for d in data %}
+                    {% set ns.row = ns.row + 1 %}
+                    {% if d.employee.current_store != ns.current_store %}
+                        {# emit subtotal for previous store #}
+                        {% if ns.current_store %}
+                        <tr class="monthly-subtotal-row" style="background:rgba(47,125,112,.08);font-size:12px;">
+                            <td colspan="3" style="color:#3a8a72;font-weight:700;padding:5px 14px;">
+                                <i class="bi bi-check2 me-1"></i>{{ ns.current_store }} subtotal
+                            </td>
+                            {% if cat == 'all' or cat == 'uniform' %}
+                            <td style="text-align:right;color:#a8702a;font-weight:700;padding:5px 14px;">R {{ "%.2f"|format(ns.su) }}</td>
+                            {% endif %}
+                            {% if cat == 'all' or cat == 'layby' %}
+                            <td style="text-align:right;color:#3a8a72;font-weight:700;padding:5px 14px;">R {{ "%.2f"|format(ns.sl) }}</td>
+                            {% endif %}
+                            {% if cat == 'all' or cat == 'undercharges' %}
+                            <td style="text-align:right;color:#b06a5a;font-weight:700;padding:5px 14px;">R {{ "%.2f"|format(ns.suc) }}</td>
+                            {% endif %}
+                            {% if cat == 'all' %}
+                            <td style="text-align:right;font-weight:700;padding:5px 14px;color:var(--text-primary);">R {{ "%.2f"|format(ns.su+ns.sl+ns.suc) }}</td>
+                            {% endif %}
+                            <td></td>
+                        </tr>
+                        {% endif %}
+                        {% set ns.current_store = d.employee.current_store %}
+                        {% set ns.su = 0 %} {% set ns.sl = 0 %} {% set ns.suc = 0 %}
+                        <tr class="monthly-store-row">
+                            <td colspan="10">
+                                <i class="bi bi-geo-alt me-1"></i>{{ ns.current_store }}
+                            </td>
+                        </tr>
+                    {% endif %}
+                    {% set ns.su = ns.su + d.uniform_total %}
+                    {% set ns.sl = ns.sl + d.layby_total %}
+                    {% set ns.suc = ns.suc + d.undercharge_total %}
+                    {% set payable = (not is_locked) and (
+                        ((cat == 'all' or cat == 'uniform') and d.uniform_total > 0 and not d.uniform_done)
+                        or ((cat == 'all' or cat == 'layby') and d.layby_total > 0 and not d.layby_done)
+                        or ((cat == 'all' or cat == 'undercharges') and d.undercharge_total != 0 and not d.undercharge_done)) %}
+                    <tr class="payroll-row {% if d.all_done %}row-paid{% else %}needs-action{% endif %}">
+                        <td class="monthly-select-cell" style="text-align:center;color:#cbd5e1;font-size:12px;">
+                            {% if payable %}
+                            <label class="monthly-check-target">
+                                <input type="checkbox" class="form-check-input mtick" value="{{ d.employee.id }}">
+                                <span class="visually-hidden">Select {{ d.employee.full_name }}</span>
+                            </label>
+                            {% else %}{{ ns.row }}{% endif %}
+                        </td>
+                        <td class="monthly-employee-cell">
+                            <div class="payroll-person">
+                                <span class="payroll-person-mark" aria-hidden="true">{{ d.employee.full_name[:1] }}</span>
+                                <span>
+                                    <a href="{{ url_for(current_workspace.employee_detail_ep, emp_id=d.employee.id) }}"
+                                       class="fw-semibold text-decoration-none">
+                                        {{ d.employee.full_name }}
+                                    </a>
+                                    <small>{{ d.employee.id }}</small>
+                                </span>
+                            </div>
+                            {% set mobile_due = d.uniform_total if cat == 'uniform' else d.layby_total if cat == 'layby' else d.undercharge_total if cat == 'undercharges' else d.total %}
+                            {% set mobile_done = d.uniform_done if cat == 'uniform' else d.layby_done if cat == 'layby' else d.undercharge_done if cat == 'undercharges' else d.all_done %}
+                            <div class="monthly-mobile-summary" aria-hidden="true">
+                                <strong>R {{ "%.2f"|format(mobile_due) }}</strong>
+                                <span class="{{ 'is-done' if mobile_done else 'is-due' }}">
+                                    {{ 'Processed' if mobile_done else 'Needs action' }}
+                                </span>
+                            </div>
+                            <button type="button" class="monthly-row-toggle" aria-expanded="false">
+                                <span>Actions &amp; breakdown</span><i class="bi bi-chevron-down"></i>
+                            </button>
+                        </td>
+                        <td class="monthly-store-cell" data-label="Store" style="font-size:13px;color:#64748b;">{{ d.employee.current_store }}</td>
+
+                        {% if cat == 'all' or cat == 'uniform' %}
+                        <td class="text-end monthly-amount-cell" data-label="Uniform">
+                            {% if d.uniform_total > 0 %}
+                                <span class="fw-semibold" style="color:#8a5220;">R {{ "%.2f"|format(d.uniform_total) }}</span>
+                                {% if d.uniform_plans|length > 1 %}
+                                <div style="font-size:10px;color:#94a3b8;">{{ d.uniform_plans|length }} plans</div>
+                                {% endif %}
+                            {% else %}
+                                <span class="zero-cell">—</span>
+                            {% endif %}
+                        </td>
+                        {% endif %}
+
+                        {% if cat == 'all' or cat == 'layby' %}
+                        <td class="text-end monthly-amount-cell" data-label="Lay-by">
+                            {% if d.layby_total > 0 %}
+                                <span class="fw-semibold" style="color:#235e54;">R {{ "%.2f"|format(d.layby_total) }}</span>
+                                {% if d.layby_plans|length > 1 %}
+                                <div style="font-size:10px;color:#94a3b8;">{{ d.layby_plans|length }} plans</div>
+                                {% endif %}
+                            {% else %}
+                                <span class="zero-cell">—</span>
+                            {% endif %}
+                        </td>
+                        {% endif %}
+
+                        {% if cat == 'all' or cat == 'undercharges' %}
+                        <td class="text-end monthly-amount-cell" data-label="Undercharges">
+                            {% if d.undercharge_total > 0 %}
+                                <span class="fw-semibold" style="color:#823721;">R {{ "%.2f"|format(d.undercharge_total) }}</span>
+                                {% if d.undercharge_rows|length > 1 %}
+                                <div style="font-size:10px;color:#94a3b8;">{{ d.undercharge_rows|length }} items</div>
+                                {% endif %}
+                            {% elif d.undercharge_total < 0 %}
+                                <span class="fw-semibold text-success">R {{ "%.2f"|format(d.undercharge_total) }}</span>
+                                <div style="font-size:10px;color:#3b6d3f;font-weight:600;">Reimburse</div>
+                            {% else %}
+                                <span class="zero-cell">—</span>
+                            {% endif %}
+                        </td>
+                        {% endif %}
+
+                        {% if cat == 'all' %}
+                        <td class="text-end monthly-total-cell" data-label="Total">
+                            <strong style="font-size:14px; color: {% if d.total < 0 %}#3b6d3f{% else %}inherit{% endif %};">R {{ "%.2f"|format(d.total) }}</strong>
+                        </td>
+                        {% endif %}
+
+                        <!-- Paid state vs pay actions: flat badge = already processed
+                             this month; bordered button = click to process. -->
+                        <td class="monthly-actions-cell" data-label="Status">
+                            <div class="d-flex flex-column gap-1 align-items-center">
+                                {% if is_locked %}
+                                    <span class="badge text-muted" style="font-size:10px;padding:4px 8px;background:rgba(28,28,28,.04);border:1px solid var(--border);">
+                                        <i class="bi bi-lock-fill"></i>
+                                    </span>
+                                {% else %}
+                                    {% if (cat == 'all' or cat == 'uniform') and d.uniform_total > 0 %}
+                                        {% if d.uniform_done %}
+                                            <span class="paid-badge"><i class="bi bi-check-lg"></i> Uniform paid</span>
+                                        {% else %}
+                                        <form method="post" action="{{ url_for('pay_uniform_monthly', year=year, month=month, emp_id=d.employee.id) }}">
+                                            <input type="hidden" name="cat" value="{{ cat }}">
+                                            <button class="pay-btn">Pay uniform</button>
+                                        </form>
+                                        {% endif %}
+                                    {% endif %}
+                                    {% if (cat == 'all' or cat == 'layby') and d.layby_total > 0 %}
+                                        {% if d.layby_done %}
+                                            <span class="paid-badge"><i class="bi bi-check-lg"></i> Lay-by paid</span>
+                                        {% else %}
+                                        <form method="post" action="{{ url_for(current_workspace.pay_layby_ep, year=year, month=month, emp_id=d.employee.id) }}">
+                                            <input type="hidden" name="cat" value="{{ cat }}">
+                                            <button class="pay-btn">Pay lay-by</button>
+                                        </form>
+                                        {% endif %}
+                                    {% endif %}
+                                    {% if (cat == 'all' or cat == 'undercharges') and d.undercharge_total != 0 %}
+                                        {% if d.undercharge_done %}
+                                            <span class="paid-badge"><i class="bi bi-check-lg"></i> {{ 'Reimbursed' if d.undercharge_total < 0 else 'Deducted' }}</span>
+                                        {% else %}
+                                        <form method="post" action="{{ url_for('pay_undercharge_monthly', year=year, month=month, emp_id=d.employee.id) }}">
+                                            <input type="hidden" name="cat" value="{{ cat }}">
+                                            {% if d.undercharge_total < 0 %}
+                                                <button class="pay-btn">Pay back</button>
+                                            {% else %}
+                                                <button class="pay-btn pay-btn-red">Deduct</button>
+                                            {% endif %}
+                                        </form>
+                                        {% if d.undercharge_total > 0 %}
+                                            {% for uc in d.undercharge_rows %}
+                                                {% if uc.status in ('pending', 'partial') and uc.type != 'overcharge' %}
+                                                <form method="post" action="{{ url_for('write_off_undercharge', uc_id=uc.id) }}"
+                                                      data-confirm="Write off this undercharge (R {{ "%.2f"|format(uc.total_amount) }} - {{ uc.reason }})?">
+                                                    <button type="submit" class="btn btn-xs btn-outline-danger payroll-writeoff" title="Write off this undercharge">
+                                                        <i class="bi bi-x-lg" aria-hidden="true"></i> Write off
+                                                    </button>
+                                                </form>
+                                                {% endif %}
+                                            {% endfor %}
+                                        {% endif %}
+                                        {% endif %}
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="10" class="text-center text-muted py-4">
+                            No {{ cat if cat != 'all' else '' }} deductions due for {{ month_full }} {{ year }}.
+                        </td>
+                    </tr>
+                {% endfor %}
+                {# final store subtotal #}
+                {% if ns.current_store and data %}
+                <tr class="monthly-subtotal-row" style="background:rgba(47,125,112,.08);font-size:12px;">
+                    <td colspan="3" style="color:#3a8a72;font-weight:700;padding:5px 14px;">
+                        <i class="bi bi-check2 me-1"></i>{{ ns.current_store }} subtotal
+                    </td>
+                    {% if cat == 'all' or cat == 'uniform' %}
+                    <td style="text-align:right;color:#a8702a;font-weight:700;padding:5px 14px;">R {{ "%.2f"|format(ns.su) }}</td>
+                    {% endif %}
+                    {% if cat == 'all' or cat == 'layby' %}
+                    <td style="text-align:right;color:#3a8a72;font-weight:700;padding:5px 14px;">R {{ "%.2f"|format(ns.sl) }}</td>
+                    {% endif %}
+                    {% if cat == 'all' or cat == 'undercharges' %}
+                    <td style="text-align:right;color:#b06a5a;font-weight:700;padding:5px 14px;">R {{ "%.2f"|format(ns.suc) }}</td>
+                    {% endif %}
+                    {% if cat == 'all' %}
+                    <td style="text-align:right;font-weight:700;padding:5px 14px;color:var(--text-primary);">R {{ "%.2f"|format(ns.su+ns.sl+ns.suc) }}</td>
+                    {% endif %}
+                    <td></td>
+                </tr>
+                {% endif %}
+            </tbody>
+            {% if display_data %}
+            <tfoot>
+                <tr class="totals-row">
+                    <td colspan="3"><strong>TOTALS — {{ display_data|length }} employee(s)</strong></td>
+                    {% if cat == 'all' or cat == 'uniform' %}
+                    <td class="text-end">R {{ "%.2f"|format(total_uniform) }}</td>
+                    {% endif %}
+                    {% if cat == 'all' or cat == 'layby' %}
+                    <td class="text-end">R {{ "%.2f"|format(total_layby) }}</td>
+                    {% endif %}
+                    {% if cat == 'all' or cat == 'undercharges' %}
+                    <td class="text-end">R {{ "%.2f"|format(total_undercharges) }}</td>
+                    {% endif %}
+                    {% if cat == 'all' %}
+                    <td class="text-end">R {{ "%.2f"|format(grand_total) }}</td>
+                    {% endif %}
+                    <td></td>
+                </tr>
+            </tfoot>
+            {% endif %}
+        </table>
+    </div>
+</div>
+{% endif %}{# end cat != invoices #}
+
+<!-- Pay All confirmation modal: states exactly how many employees and how
+     much money is about to be processed, replacing the bare confirm(). -->
+{% set pay_cat_label = 'Lay-by' if cat == 'layby' else 'Staff Uniform' if cat == 'uniform' else 'Undercharge' if cat == 'undercharges' else 'all' %}
+{% set pay_amount = total_layby if cat == 'layby' else total_uniform if cat == 'uniform' else total_undercharges if cat == 'undercharges' else grand_total %}
+<div class="modal fade" id="payAllModal" tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content border-0" style="border-radius:14px;overflow:hidden;">
+            <div class="modal-header border-0 payroll-confirm-header">
+                <h6 class="modal-title fw-bold mb-0" style="color:#3b6d3f;">
+                    <i class="bi bi-check2-all me-2"></i>Pay All — {{ month_full }} {{ year }}
+                </h6>
+                <button class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" style="padding:16px 20px;">
+                <p class="mb-2" style="font-size:13px;color:var(--text-secondary);">
+                    This will mark <strong>{{ pay_cat_label }}</strong> deductions as paid
+                    {% if store_filter %}for <strong>{{ store_filter }}</strong>{% endif %}:
+                </p>
+                <div class="d-flex justify-content-between p-2 mb-1" style="background:rgba(47,109,58,.07);border-radius:8px;font-size:13px;">
+                    <span>Employees with unpaid items</span><strong>{{ pending_rows | length }}</strong>
+                </div>
+                <div class="d-flex justify-content-between p-2" style="background:rgba(47,109,58,.07);border-radius:8px;font-size:13px;">
+                    <span>Month total ({{ 'all categories' if cat == 'all' else pay_cat_label }})</span><strong>R {{ "%.2f"|format(pay_amount) }}</strong>
+                </div>
+                <p class="mt-2 mb-0" style="font-size:11px;color:var(--text-secondary);">
+                    Already-paid items are skipped automatically. Individual payments can be voided afterwards from the employee's audit log.
+                </p>
+            </div>
+            <div class="modal-footer border-0 pt-0" style="padding:0 20px 16px;">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" id="confirmPayAllBtn" class="btn btn-success btn-sm px-4 fw-semibold">
+                    Confirm — Pay All
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<span id="monthlyConfig" hidden
+      data-month-nav-target="{{ '/hq' if current_workspace.key == 'hq' else '' }}/monthly/{year}/{month}{% if store_filter %}?store={{ store_filter }}{% endif %}"></span>
+<script src="{{ url_for('static', filename='monthly.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+{% block title %}Payroll Sheet Export — Northwind Deductions{% endblock %}
+{% block page_title %}Payroll Sheet Export{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <strong><i class="bi bi-file-earmark-spreadsheet me-2"></i>Generate Payroll Sheet</strong>
+            </div>
+            <div class="p-4">
+                <form method="post" action="{{ url_for('payroll_sheet') }}">
+
+                    <!-- Month selector -->
+                    <div class="row g-3 mb-4">
+                        <div class="col-auto">
+                            <label class="form-label fw-semibold" style="font-size:13px;">Month</label>
+                            <select name="month" class="form-select" style="width:140px;">
+                                {% for i in range(1,13) %}
+                                <option value="{{ i }}" {% if i == now.month %}selected{% endif %}>{{ MONTH_FULL[i] }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-auto">
+                            <label class="form-label fw-semibold" style="font-size:13px;">Year</label>
+                            <input type="number" name="year" class="form-control" value="{{ now.year }}" style="width:100px;">
+                        </div>
+                    </div>
+
+                    <!-- Paste area -->
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold" style="font-size:13px;">
+                            Employee List
+                            <span style="font-weight:400;color:#94a3b8;margin-left:6px;">— paste from your payroll spreadsheet (Name TAB Store, one per line)</span>
+                        </label>
+                        <textarea name="employee_list" id="employeeList" class="form-control"
+                                  rows="18"
+                                  placeholder="Harkness, Amara Grace&#9;Riverbend&#10;Ingleby, Verity&#9;Westgate&#10;…"
+                                  style="font-family:monospace;font-size:12px;line-height:1.6;resize:vertical;"></textarea>
+                        <div class="d-flex justify-content-between mt-1">
+                            <span id="lineCount" style="font-size:12px;color:#94a3b8;">0 employees</span>
+                            <button type="button" id="clearEmployeeList" class="btn btn-link btn-sm p-0" style="font-size:12px;">Clear</button>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary px-5">
+                        <i class="bi bi-download me-2"></i>Export Excel
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Info panel -->
+    <div class="col-lg-4">
+        <div class="card p-4" style="font-size:13px;">
+            <div class="fw-bold mb-3" style="font-size:14px;"><i class="bi bi-info-circle me-2 text-primary"></i>How it works</div>
+            <ol class="ps-3" style="line-height:2;">
+                <li>Select the payroll month and year</li>
+                <li>Copy your employee list from the payroll spreadsheet and paste it into the box</li>
+                <li>Click <strong>Export Excel</strong></li>
+            </ol>
+            <hr style="border-color:var(--border);">
+            <div class="fw-semibold mb-2">Excel columns</div>
+            <table style="width:100%;border-collapse:collapse;">
+                {% for col, desc in [
+                    ('#', 'Row number'),
+                    ('Employee', 'Full name'),
+                    ('Store', 'Current store'),
+                    ('Staff Uniform (R)', 'Monthly uniform deduction'),
+                    ('Staff Lay-by (R)', 'Combined lay-by deductions'),
+                    ('Undercharge (R)', 'Undercharge amount due'),
+                    ('Ref #', 'Sale / NORTHWIND reference number'),
+                    ('Reason', 'Undercharge description'),
+                    ('Total (R)', 'Sum of all deductions'),
+                ] %}
+                <tr style="border-bottom:1px solid var(--border);">
+                    <td style="padding:4px 8px 4px 0;font-weight:600;white-space:nowrap;color:var(--text-primary);">{{ col }}</td>
+                    <td style="padding:4px 0;color:var(--text-secondary);">{{ desc }}</td>
+                </tr>
+                {% endfor %}
+            </table>
+            <hr style="border-color:var(--border);">
+            <div style="color:#94a3b8;font-size:12px;">
+                <i class="bi bi-exclamation-circle me-1"></i>
+                Names that don't match an employee in the database are highlighted <span style="color:#b06a5a;font-weight:600;">red</span> in the export.
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='payroll-sheet.js') }}"></script>
+{% endblock %}

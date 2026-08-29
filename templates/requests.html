@@ -1,0 +1,333 @@
+{% extends 'base.html' %}
+{% block title %}Staff Requests — Northwind Deductions{% endblock %}
+{% block page_title %}Staff Requests{% endblock %}
+
+{% from '_pager.html' import pager as list_pager %}
+{% macro money(x) %}R {{ x|rands }}{% endmacro %}
+
+{% block content %}
+{#- Three tabs, not four stat tiles plus three selects. The counts staff care about
+    ARE the filters, so they do both jobs in one tap-sized row — the tiles were
+    chrome you couldn't click. -#}
+<div class="rq-toolbar">
+    <nav class="rq-tabs" aria-label="Filter requests by state">
+        {% for key, label, count in [('open', 'Needs action', counts.open),
+                                     ('fulfilled', 'Done', counts.fulfilled),
+                                     ('all', 'Everything', counts.all)] %}
+        <a class="rq-tab {% if status == key %}is-on{% endif %}"
+           href="{{ url_for('requests_list', status=key, kind=kind or none, store=store or none) }}">
+            {{ label }}<span class="rq-tab-n">{{ count }}</span>
+        </a>
+        {% endfor %}
+    </nav>
+    <form class="rq-filters" method="get">
+        <input type="hidden" name="status" value="{{ status }}">
+        <select name="kind" class="form-select" data-submit-on-change aria-label="Type of request">
+            <option value="">All types</option>
+            {% for k in kinds %}
+            <option value="{{ k }}" {% if kind == k %}selected{% endif %}>{{ kind_labels[k] }}</option>
+            {% endfor %}
+        </select>
+        <select name="store" class="form-select" data-submit-on-change aria-label="Store">
+            <option value="">All stores</option>
+            {% for s in all_stores %}
+            <option value="{{ s }}" {% if store == s %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+        </select>
+    </form>
+</div>
+
+{% if counts.info_needed and status == 'open' %}
+<p class="rq-hint"><i class="bi bi-chat-left-text"></i>
+    {{ counts.info_needed }} request{{ '' if counts.info_needed == 1 else 's' }} waiting on a
+    reply from the store.</p>
+{% endif %}
+
+{{ list_pager(pager) }}
+
+<div class="rq-list">
+{% for r in requests %}
+    <div class="rq-item">
+        {#- Two lines, one tap target the full width of the row. Everything else
+            (thread, forms) is behind the tap, so the list stays scannable. -#}
+        <button class="rq-row" type="button" data-bs-toggle="collapse"
+                data-bs-target="#req{{ r.id }}" aria-expanded="false" aria-controls="req{{ r.id }}">
+            <span class="rq-icon rq-icon-{{ r.kind }}"><i class="bi {{ r.icon }}"></i></span>
+            <span class="rq-who">
+                <span class="rq-name">{{ r.employee_name }}</span>
+                <span class="rq-meta">{{ r.kind_label }} · {{ r.store or 'No store' }} ·
+                    {{ r.created_at|shortdate }}{% if r.summary %} · {{ r.summary }}{% endif %}</span>
+            </span>
+            <span class="rq-end">
+                {% if r.plan %}<span class="rq-amount">{{ money(r.plan.total) }}</span>
+                {% elif r.estimated_total is not none %}<span class="rq-amount rq-amount-est" title="The store's estimate">{{ money(r.estimated_total) }}</span>{% endif %}
+                <span class="rq-pill req-s-{{ r.status }}">{{ r.status_label }}</span>
+                <i class="bi bi-chevron-down rq-chev"></i>
+            </span>
+        </button>
+
+        <div class="collapse" id="req{{ r.id }}">
+            <div class="rq-drawer">
+                <!-- What they asked for -->
+                <ul class="rq-ask">
+                    {% for i in r.get('items', []) %}
+                    <li>
+                        <span class="rq-ask-what">{{ i.description }}{% if i.size %} <span class="rq-dim">· {{ i.size }}</span>{% endif %}{% if i.qty > 1 %} <span class="rq-dim">× {{ i.qty }}</span>{% endif %}
+                            {% if i.sku %}<span class="rq-sku">{{ i.sku }}</span>{% endif %}</span>
+                        <span class="rq-ask-price">{% if i.price is not none %}{{ money(i.total) }}{% else %}<span class="rq-dim">no price yet</span>{% endif %}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                <p class="rq-facts">
+                    {% if r.requested_term_months %}Wants {{ r.requested_term_months }} month{{ '' if r.requested_term_months == 1 else 's' }} · {% endif %}
+                    {{ r.ref }} · asked by {{ r.created_by_label }}
+                    {% if r.claimed_by %} · with {{ r.claimed_by }}{% endif %}
+                </p>
+                {% if r.notes %}<p class="rq-note">“{{ r.notes }}”</p>{% endif %}
+
+                {#- Finished: show what was actually written, not just that something
+                    was. The figures are the plan's own, and the message is there to
+                    paste to the store (there is no automated email). -#}
+                {% if r.plan %}
+                <div class="rq-done">
+                    <div class="rq-done-top">
+                        <span class="rq-done-title"><i class="bi bi-check2-circle"></i> Deduction created</span>
+                        <span class="rq-done-by">by {{ r.decided_by }}{% if r.decided_at %} · {{ r.decided_at|shortdate }}{% endif %}</span>
+                    </div>
+                    <dl class="rq-done-figures">
+                        <div><dt>Total</dt><dd>{{ money(r.plan.total) }}</dd></div>
+                        <div><dt>Monthly</dt><dd>{{ money(r.plan.monthly) }} × {{ r.plan.term }}</dd></div>
+                        <div><dt>First deduction</dt><dd>{{ r.plan.start_label }}</dd></div>
+                        {% if r.plan.discount_pct %}<div><dt>Staff discount</dt><dd>{{ r.plan.discount_pct|round|int }}%</dd></div>{% endif %}
+                        {% if r.plan.sale_number %}<div><dt>Sale</dt><dd>{{ r.plan.sale_number }}</dd></div>{% endif %}
+                        <div><dt>Progress</dt><dd>{{ r.plan.payments_made }} of {{ r.plan.term }} paid{% if r.plan.remaining %} · {{ money(r.plan.remaining) }} to go{% endif %}</dd></div>
+                    </dl>
+                    {% if r.estimated_total is not none and (r.estimated_total - r.plan.total)|abs > 0.005 %}
+                    <p class="rq-done-diff">The store estimated {{ money(r.estimated_total) }} —
+                        {{ money(r.plan.total) }} was captured.</p>
+                    {% endif %}
+                    <div class="rq-done-actions">
+                        <a class="rq-btn rq-btn-quiet" href="{{ url_for('employee_detail', emp_id=r.employee_id) }}">
+                            <i class="bi bi-person"></i> Open {{ r.employee_name }}</a>
+                        <button class="rq-btn rq-btn-quiet" type="button"
+                                data-copy-text="{{ r.store_message }}">
+                            <i class="bi bi-clipboard"></i> Copy message for the store</button>
+                    </div>
+                </div>
+                {% elif r.status == 'approved' %}
+                <div class="rq-done is-waiting">
+                    <div class="rq-done-top">
+                        <span class="rq-done-title"><i class="bi bi-check2"></i> Approved — no deduction yet</span>
+                        <span class="rq-done-by">by {{ r.decided_by }}{% if r.decided_at %} · {{ r.decided_at|shortdate }}{% endif %}</span>
+                    </div>
+                    <p class="rq-done-diff">Nothing comes off {{ r.employee_name }}'s pay until you
+                        create the plan below — do that when the item is handed over.</p>
+                    <div class="rq-done-actions">
+                        <button class="rq-btn rq-btn-quiet" type="button"
+                                data-copy-text="{{ r.store_message }}">
+                            <i class="bi bi-clipboard"></i> Copy message for the store</button>
+                    </div>
+                </div>
+                {% elif r.decline_reason %}
+                <div class="rq-done is-bad">
+                    <div class="rq-done-top">
+                        <span class="rq-done-title"><i class="bi bi-x-circle"></i> Declined</span>
+                        <span class="rq-done-by">by {{ r.decided_by }}{% if r.decided_at %} · {{ r.decided_at|shortdate }}{% endif %}</span>
+                    </div>
+                    <p class="rq-done-diff">{{ r.decline_reason }}</p>
+                    <div class="rq-done-actions">
+                        <button class="rq-btn rq-btn-quiet" type="button"
+                                data-copy-text="{{ r.store_message }}">
+                            <i class="bi bi-clipboard"></i> Copy message for the store</button>
+                    </div>
+                </div>
+                {% elif r.status == 'cancelled' %}
+                <p class="rq-outcome"><i class="bi bi-x-circle"></i> The store cancelled this.</p>
+                {% endif %}
+
+                {% if r.is_open %}
+                {#- One row of plain-language choices; each opens its own panel so the
+                    drawer is never a wall of inputs. <details> keeps it JavaScript-free. -#}
+                <div class="rq-do">
+                    {% if r.status in ('submitted', 'info_needed') %}
+                    <form method="post" action="{{ url_for('request_claim', req_id=r.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="rq-btn rq-btn-quiet" type="submit">
+                            <i class="bi bi-hand-index-thumb"></i> I'll sort this</button>
+                    </form>
+                    {% endif %}
+                    {#- Green-light it without creating money yet: the goods often are
+                        not in the store on the day the ask is approved. Lost once in a
+                        layout rewrite — tests/test_staff_requests.py now guards it. -#}
+                    {% if r.status != 'approved' %}
+                    <form method="post" action="{{ url_for('request_set_status', req_id=r.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="status" value="approved">
+                        <button class="rq-btn rq-btn-quiet" type="submit"
+                                title="Say yes now; create the deduction when the item is handed over">
+                            <i class="bi bi-check2"></i> Approve — plan it later</button>
+                    </form>
+                    {% endif %}
+
+                    <details class="rq-panel rq-panel-go">
+                        <summary><i class="bi bi-check2-circle"></i> Approve &amp; create the plan</summary>
+                        <form method="post" action="{{ url_for('request_convert', req_id=r.id) }}" class="rq-form">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                            {#- Same Fast-Fill as capturing a plan by hand: paste the tax
+                                invoice and the items, prices, discount, SKU and sale number
+                                fill themselves in. Wired by static/invoice-fastfill.js off
+                                these data- attributes, so this page stays inline-JS-free. -#}
+                            <div class="rq-fill" data-fastfill data-employee-name="{{ r.employee_name }}">
+                                <label class="rq-field">
+                                    <span><i class="bi bi-lightning-charge-fill"></i> Drop the invoice text in here</span>
+                                    <textarea rows="2" data-fastfill-input
+                                              placeholder="Paste everything from the tax invoice PDF — items, prices, discount and sale number are read for you."></textarea>
+                                </label>
+                                <div class="rq-fill-foot">
+                                    <button type="button" class="rq-btn rq-btn-quiet" data-fastfill-go>
+                                        <i class="bi bi-magic"></i> Read the invoice</button>
+                                    <span class="rq-fill-status" data-fastfill-status aria-live="polite"></span>
+                                </div>
+                            </div>
+
+                            {% if r.kind == 'layby' %}
+                            <div class="rq-lines" data-fastfill-lines>
+                                {% for i in r.get('items', []) %}
+                                <div class="rq-line">
+                                    <label class="rq-field">
+                                        <span>Item{% if i.sku %} · SKU {{ i.sku }}{% endif %}</span>
+                                        <input type="text" name="item_desc_{{ loop.index0 }}"
+                                               value="{{ i.description }}{% if i.size %} {{ i.size }}{% endif %}" required>
+                                    </label>
+                                    <label class="rq-field rq-field-tiny">
+                                        <span>Qty</span>
+                                        <input type="number" name="item_qty_{{ loop.index0 }}"
+                                               value="{{ i.qty }}" min="1" max="99">
+                                    </label>
+                                    <label class="rq-field">
+                                        <span>Shop price</span>
+                                        <input type="number" name="item_price_{{ loop.index0 }}"
+                                               value="{{ '%.2f'|format(i.price) if i.price is not none else '' }}"
+                                               step="0.01" min="0" placeholder="0.00" required>
+                                    </label>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            <div class="rq-grid">
+                                {% if r.kind == 'layby' %}
+                                <label class="rq-field">
+                                    <span>Staff discount %</span>
+                                    <input type="number" name="discount_pct" value="40" step="1" min="0" max="100">
+                                </label>
+                                {% else %}
+                                <label class="rq-field">
+                                    <span>Total</span>
+                                    <input type="number" name="total_amount" step="0.01" min="0" required
+                                           value="{{ '%.2f'|format(r.estimated_total) if r.estimated_total is not none else '' }}">
+                                </label>
+                                <label class="rq-field">
+                                    <span>Monthly</span>
+                                    <input type="number" name="monthly_amount" step="0.01" min="0"
+                                           placeholder="Auto">
+                                </label>
+                                <label class="rq-field">
+                                    <span>SKU</span>
+                                    <input type="text" name="sku" placeholder="660200…"
+                                           value="{{ r.get('items', [])|map(attribute='sku')|select|join(', ') }}">
+                                </label>
+                                {% endif %}
+                                <label class="rq-field">
+                                    <span>Pay off over</span>
+                                    <select name="term_months">
+                                        {% for m in range(1, max_term + 1) %}
+                                        <option value="{{ m }}" {% if (r.requested_term_months or 6) == m %}selected{% endif %}>{{ m }} month{{ '' if m == 1 else 's' }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </label>
+                                <label class="rq-field">
+                                    <span>First deduction</span>
+                                    <select name="start_month">
+                                        {% for m in range(1, 13) %}
+                                        <option value="{{ m }}" {% if m == default_month %}selected{% endif %}>{{ MONTH_NAMES[m] }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </label>
+                                <label class="rq-field rq-field-tiny">
+                                    <span>Year</span>
+                                    <input type="number" name="start_year" value="{{ default_year }}" min="2020" max="2100">
+                                </label>
+                                <label class="rq-field">
+                                    <span>Sale number</span>
+                                    <input type="text" name="sale_number" placeholder="SO-XXXXXX">
+                                </label>
+                            </div>
+                            <div class="rq-form-foot">
+                                <button class="rq-btn rq-btn-go" type="submit">
+                                    <i class="bi bi-check2-circle"></i> Create the deduction</button>
+                                <span class="rq-form-note">Same rules as capturing it by hand.
+                                    {{ r.employee_name }} sees it immediately.</span>
+                            </div>
+                        </form>
+                    </details>
+
+                    <details class="rq-panel">
+                        <summary><i class="bi bi-chat-left-text"></i> Message the store</summary>
+                        <form method="post" action="{{ url_for('request_comment', req_id=r.id) }}" class="rq-form">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <label class="rq-field">
+                                <span>Your message</span>
+                                <textarea name="message" rows="2" required
+                                          placeholder="e.g. We only have UK6 — is that okay?"></textarea>
+                            </label>
+                            <label class="rq-check">
+                                <input type="checkbox" name="ask_for_info" value="1">
+                                <span>Park it until they answer</span>
+                            </label>
+                            <button class="rq-btn rq-btn-quiet" type="submit">
+                                <i class="bi bi-send"></i> Send</button>
+                        </form>
+                    </details>
+
+                    <details class="rq-panel">
+                        <summary><i class="bi bi-x-circle"></i> Decline</summary>
+                        <form method="post" action="{{ url_for('request_set_status', req_id=r.id) }}" class="rq-form">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="status" value="declined">
+                            <label class="rq-field">
+                                <span>Reason — the store sees this</span>
+                                <input type="text" name="message" maxlength="1000" required
+                                       placeholder="e.g. Not on the staff uniform list">
+                            </label>
+                            <button class="rq-btn rq-btn-no" type="submit">Decline the request</button>
+                        </form>
+                    </details>
+                </div>
+                {% endif %}
+
+                <details class="rq-activity">
+                    <summary>Activity <span class="rq-tab-n">{{ r.get('events', [])|length }}</span></summary>
+                    <ol class="rq-thread">
+                        {% for e in r.get('events', []) %}
+                        <li>
+                            <span class="rq-thread-who">{% if e.actor_role == 'staff' %}{{ r.employee_name }}{% else %}{{ e.actor }}{% endif %}</span>
+                            <span class="rq-thread-at">{{ e.at|shortdate }}</span>
+                            <span class="rq-thread-msg">{{ e.message or e.to_label }}</span>
+                        </li>
+                        {% endfor %}
+                    </ol>
+                </details>
+            </div>
+        </div>
+    </div>
+{% else %}
+    <div class="rq-empty">
+        <i class="bi bi-inbox"></i>
+        <p>Nothing here.{% if status != 'all' %} Try <a href="{{ url_for('requests_list', status='all') }}">everything</a>, or s{% else %} S{% endif %}taff requests raised in the portal land on this page.</p>
+    </div>
+{% endfor %}
+</div>
+
+{{ list_pager(pager) }}
+{% endblock %}

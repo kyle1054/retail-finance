@@ -1,0 +1,99 @@
+.admins-card { padding:24px; border-radius:14px; background:var(--bg-elevated);
+    border:1px solid var(--border); margin-bottom:20px; }
+.admins-card h2 { font-size:16px; font-weight:700; color:var(--text-primary); margin:0 0 16px;
+    display:flex; align-items:center; gap:8px; }
+.admins-card h2 i { opacity:.6; }
+.admins-card .sub { font-size:12px; font-weight:400; color:var(--text-secondary); margin-left:auto; }
+
+.admin-row { display:flex; align-items:center; gap:14px; padding:12px 0;
+    border-bottom:1px solid var(--border-subtle,rgba(255,255,255,.04)); flex-wrap:wrap; }
+.admin-row:last-child { border-bottom:none; }
+.admin-avatar { width:40px; height:40px; border-radius:10px; display:flex; align-items:center;
+    justify-content:center; background:rgba(107,92,168,.12); color:#534877; font-size:18px; font-weight:700; }
+.admin-info { flex:1; min-width:180px; }
+.admin-name { font-size:14px; font-weight:600; color:var(--text-primary); }
+.admin-user { font-size:12px; color:var(--text-secondary); }
+.admin-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.admin-actions form { margin:0; }
+
+.btn-sm { padding:6px 12px; border-radius:8px; border:1px solid var(--border);
+    background:transparent; color:var(--text-secondary); font-size:12px; cursor:pointer; transition:.15s; }
+.btn-sm:hover { border-color:var(--accent); color:var(--text-primary); }
+.btn-sm-del:hover { border-color:#9a4632; color:#9a4632; }
+.row-select { padding:6px 8px; border-radius:8px; border:1px solid var(--border);
+    background:var(--bg-base); color:var(--text-primary); font-size:12px; }
+
+.add-form { display:flex; gap:10px; flex-wrap:wrap; align-items:end; }
+.add-form .field { flex:1; min-width:140px; }
+.add-form label { font-size:11px; font-weight:600; color:var(--text-secondary);
+    text-transform:uppercase; letter-spacing:.04em; display:block; margin-bottom:4px; }
+.add-form input, .add-form select { width:100%; padding:9px 12px; border-radius:9px;
+    border:1px solid var(--border); background:var(--bg-base); color:var(--text-primary); font-size:13px; }
+.add-form input:focus, .add-form select:focus { outline:none; border-color:var(--accent); }
+.add-btn { padding:9px 18px; border-radius:9px; border:none; background:var(--accent,#534877);
+    color:#fff; font-weight:600; font-size:13px; cursor:pointer; transition:filter .15s; white-space:nowrap; }
+.add-btn:hover { filter:brightness(1.08); }
+
+.tag { font-size:10px; font-weight:700; padding:2px 8px; border-radius:6px;
+    text-transform:uppercase; letter-spacing:.04em; white-space:nowrap; }
+.you-tag   { background:rgba(47,125,112,.12); color:#235e54; }
+.role-super  { background:rgba(107,92,168,.14); color:#534877; }
+.role-retail { background:rgba(47,125,112,.14); color:#4a9a86; }
+.role-hq     { background:rgba(176,106,44,.14); color:#b89030; }
+.tag-card  { background:rgba(70,110,160,.16); color:#4a7bb0; }
+.tag-rm    { background:rgba(150,90,160,.16); color:#9a5aa8; }
+.tag-off   { background:rgba(154,70,50,.14); color:#9a4632; }
+
+.cred-panel { padding:16px 18px; border-radius:12px; border:1px solid #b8903055;
+    background:rgba(176,106,44,.08); margin-bottom:20px; }
+.cred-panel .lbl { font-size:11px; text-transform:uppercase; letter-spacing:.04em;
+    color:var(--text-secondary); font-weight:700; }
+.cred-panel code { font-size:16px; font-weight:700; color:var(--text-primary);
+    background:var(--bg-base); padding:4px 10px; border-radius:7px; }
+
+.roster { width:100%; border-collapse:collapse; }
+.roster th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.04em;
+    color:var(--text-secondary); font-weight:700; padding:8px 10px; border-bottom:1px solid var(--border); }
+.roster td { padding:10px; font-size:13px; color:var(--text-primary);
+    border-bottom:1px solid var(--border-subtle,rgba(255,255,255,.04)); vertical-align:middle; }
+.roster .caps { display:flex; gap:6px; flex-wrap:wrap; }
+.muted { color:var(--text-secondary); }
+
+
+/* ── Editing one person's access in place ─────────────────────────────────────
+   Every capability used to be granted on a different page, so "make this
+   cardholder an RM too" meant creating them again somewhere else. This panel
+   edits the login that already exists. */
+.roster .row-edit { text-align:right; white-space:nowrap; }
+.roster .access-row > td { padding:0; border-bottom:1px solid var(--border); }
+.access-cell { background:rgba(0,0,0,.02); }
+.access-form { display:flex; flex-direction:column; gap:16px; padding:18px 12px 14px; }
+.access-grid { display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); }
+.access-field { display:flex; flex-direction:column; gap:6px; min-width:0; }
+.access-field > span, .access-label { font-size:11px; font-weight:700; text-transform:uppercase;
+    letter-spacing:.04em; color:var(--text-secondary); }
+.access-field input, .access-field select { width:100%; min-height:40px; padding:9px 11px;
+    border-radius:9px; border:1px solid var(--border); background:var(--bg-base);
+    color:var(--text-primary); font-size:13.5px; font-family:inherit; }
+.access-field input:focus, .access-field select:focus { outline:none; border-color:var(--accent); }
+.access-block { display:flex; flex-direction:column; gap:10px; padding-top:14px;
+    border-top:1px solid var(--border); }
+.access-check { display:flex; align-items:center; gap:10px; font-size:13.5px;
+    color:var(--text-primary); cursor:pointer; }
+.access-check input { width:18px; height:18px; accent-color:var(--accent); }
+/* Every store on screen at once: an RM covers a handful and picking them from a
+   dropdown one at a time was the reason this lived on another page. */
+.store-picker { display:grid; gap:6px 14px;
+    grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); }
+.store-opt { display:flex; align-items:center; gap:8px; min-height:34px; font-size:13px;
+    color:var(--text-primary); cursor:pointer; }
+.store-opt input { width:16px; height:16px; accent-color:var(--accent); }
+.access-note { margin:0; font-size:12px; color:var(--text-secondary); line-height:1.5; }
+.access-actions { display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    padding-top:14px; border-top:1px solid var(--border); }
+.access-pw { display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+    padding:0 12px 18px; }
+.access-pw input { min-height:40px; padding:9px 11px; border-radius:9px;
+    border:1px solid var(--border); background:var(--bg-base); color:var(--text-primary);
+    font-size:13px; min-width:260px; font-family:inherit; }
+.access-pw input:focus { outline:none; border-color:var(--accent); }

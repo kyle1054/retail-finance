@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Regional Managers — NORTHWIND{% endblock %}
+{% block page_title %}Regional Managers{% endblock %}
+
+{% block content %}
+<link href="{{ url_for('static', filename='admin-regional-managers.css') }}" rel="stylesheet">
+
+{% if new_credential %}
+<div class="cred-panel">
+    <h3><i class="bi bi-key-fill"></i> New credential — shown once</h3>
+    <div class="cred-grid">
+        <div class="cred-item"><div class="k">Email</div><div class="v" id="credEmail">{{ new_credential.email }}</div></div>
+        <div class="cred-item"><div class="k">Password</div><div class="v" id="credPw">{{ new_credential.password }}</div></div>
+        <button type="button" class="copy-btn" id="copyCred" data-copy-values="credEmail,credPw"><i class="bi bi-clipboard"></i> Copy</button>
+    </div>
+    <div style="font-size:11.5px;color:var(--text-secondary);margin-top:10px;">Copy this now — it won't be shown again. Share it with the regional manager securely.</div>
+</div>
+{% endif %}
+
+{# ── Roster ─────────────────────────────────────────────────────────────────── #}
+<div class="rm-card">
+    <h2><i class="bi bi-person-badge-fill"></i> Regional Managers
+        <span style="font-size:12px;font-weight:400;color:var(--text-secondary);margin-left:auto;">{{ rms|length }} manager{{ 's' if rms|length != 1 }}</span></h2>
+
+    {% for rm in rms %}
+    <div class="rm-row">
+        <div class="rm-avatar">{{ (rm.name or rm.email)[0]|upper }}</div>
+        <div class="rm-info">
+            <div class="rm-name">
+                {{ rm.name or '(no name)' }}
+                {% if rm.active %}<span class="badge-tag badge-active">Active</span>{% else %}<span class="badge-tag badge-off">Inactive</span>{% endif %}
+                {% if rm.card_count == 1 %}<span class="badge-tag badge-card"><i class="bi bi-credit-card-2-front"></i> {{ rm.card_name }}</span>
+                {% elif rm.card_count > 1 %}<span class="badge-tag badge-off"><i class="bi bi-exclamation-triangle"></i> {{ rm.card_count }} cards — choose one</span>{% endif %}
+                <span class="badge-tag badge-count">{{ rm.store_count }} store{{ 's' if rm.store_count != 1 }}</span>
+            </div>
+            <div class="rm-user">{{ rm.email }}</div>
+            <div class="rm-card-access">
+                <div class="rm-card-access-copy">
+                    <strong>Company credit card</strong>
+                    <span>One card maximum for this RM profile.</span>
+                </div>
+                <form class="rm-card-form" method="post" action="{{ url_for('admin_rm_assign_card', email=rm.email) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <label class="visually-hidden" for="rmCard{{ loop.index }}">Company credit card for {{ rm.name or rm.email }}</label>
+                    <select id="rmCard{{ loop.index }}" name="card_id">
+                        <option value="" {% if not rm.card_id %}selected{% endif %}>— No credit card —</option>
+                        {% for card in cards %}
+                        <option value="{{ card.id }}" {% if rm.card_id == card.id %}selected{% endif %}>{{ card.display_name or card.card_name }}</option>
+                        {% endfor %}
+                    </select>
+                    <button class="assign-save" type="submit"><i class="bi bi-check2"></i> Save card</button>
+                </form>
+            </div>
+        </div>
+        <div class="rm-actions">
+            <form method="post" action="{{ url_for('admin_rm_toggle', email=rm.email) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn-sm" type="submit">
+                    {% if rm.active %}<i class="bi bi-pause-circle"></i> Deactivate{% else %}<i class="bi bi-play-circle"></i> Activate{% endif %}
+                </button>
+            </form>
+            <form method="post" action="{{ url_for('admin_rm_reset_password', email=rm.email) }}"
+                  data-confirm="Reset password for {{ rm.email }}? A new one will be generated and shown once.">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn-sm danger" type="submit"><i class="bi bi-arrow-repeat"></i> Reset password</button>
+            </form>
+        </div>
+    </div>
+    {% else %}
+    <div style="padding:20px 0;color:var(--text-secondary);font-size:13px;">No regional managers yet. Create one below.</div>
+    {% endfor %}
+</div>
+
+{# ── Create RM ──────────────────────────────────────────────────────────────── #}
+<div class="rm-card">
+    <h2><i class="bi bi-person-plus-fill"></i> Add Regional Manager</h2>
+    <form method="post" action="{{ url_for('admin_rm_create') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="add-form">
+            <div class="field">
+                <label>Name</label>
+                <input type="text" name="name" placeholder="e.g. Sarah Jones" required>
+            </div>
+            <div class="field">
+                <label>Email</label>
+                <input type="email" name="email" placeholder="e.g. sarah@northwind-apparel.example" required>
+            </div>
+            <div class="field">
+                <label>Password <span style="text-transform:none;font-weight:400;">(optional — auto-generated if blank)</span></label>
+                <input type="text" name="password" placeholder="Leave blank to generate">
+            </div>
+            <div class="field">
+                <label>Company credit card <span style="text-transform:none;font-weight:400;">(optional · one maximum)</span></label>
+                <select name="card_id">
+                    <option value="">— No credit card —</option>
+                    {% for card in cards %}<option value="{{ card.id }}">{{ card.display_name or card.card_name }}</option>{% endfor %}
+                </select>
+            </div>
+            <button class="add-btn" type="submit"><i class="bi bi-plus-lg"></i> Create</button>
+        </div>
+    </form>
+</div>
+
+{# ── Per-store assignment ───────────────────────────────────────────────────── #}
+<div class="rm-card">
+    <h2><i class="bi bi-shop"></i> Store assignments
+        <span style="font-size:12px;font-weight:400;color:var(--text-secondary);margin-left:auto;">One regional manager per store</span></h2>
+    <div style="overflow-x:auto;">
+    <table class="assign-table">
+        <thead>
+            <tr><th>Store</th><th>Regional manager</th><th style="width:1%;"></th></tr>
+        </thead>
+        <tbody>
+            {% for store in stores %}
+            {% set current = assignments.get(store) %}
+            <tr>
+                <td style="font-weight:500;white-space:nowrap;">{{ store }}</td>
+                <td colspan="2">
+                    <form method="post" action="{{ url_for('admin_rm_assign') }}" style="display:flex;gap:8px;align-items:center;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="store" value="{{ store }}">
+                        <select name="email">
+                            <option value="" {% if not current %}selected{% endif %}>— None —</option>
+                            {% for rm in rms %}
+                            <option value="{{ rm.email }}" {% if current == rm.email %}selected{% endif %}>{{ rm.name or rm.email }}{% if not rm.active %} (inactive){% endif %}</option>
+                            {% endfor %}
+                        </select>
+                        <button class="assign-save" type="submit">Save</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
+
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='access-pages.js') }}"></script>{% endblock %}

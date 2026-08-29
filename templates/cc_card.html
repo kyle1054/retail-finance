@@ -1,0 +1,862 @@
+{% extends 'base.html' %}
+{% block title %}{{ card.display_name or card.card_name }} — Credit Cards{% endblock %}
+{% block page_title %}{{ card.display_name or card.card_name }}{% endblock %}
+
+{% block content %}
+<link href="{{ url_for('static', filename='cc-card.css') }}" rel="stylesheet">
+{% set selected_statement = (statements|selectattr('id','equalto',selected_id)|list|first) %}
+{% set browser_image_exts = ['png', 'jpg', 'jpeg', 'gif', 'webp'] %}
+{% if new_credential %}
+<div class="alert alert-warning d-flex flex-wrap align-items-center gap-2 shadow-sm" role="alert">
+    <div class="me-2">
+        <i class="bi bi-key-fill me-1"></i>
+        One-time password for <strong>{{ new_credential.email }}</strong> — copy it now, it won't be shown again:
+    </div>
+    <div class="input-group input-group-sm" style="max-width:320px;">
+        <input id="newCredPw" class="form-control font-monospace" readonly value="{{ new_credential.password }}"
+               onclick="this.select();">
+        <button type="button" class="btn btn-outline-secondary"
+                onclick="var i=document.getElementById('newCredPw'); i.select(); navigator.clipboard &amp;&amp; navigator.clipboard.writeText(i.value); this.textContent='Copied';">
+            <i class="bi bi-clipboard me-1"></i>Copy</button>
+    </div>
+</div>
+{% endif %}
+<div class="cc-card-pagebar">
+    <a href="{{ url_for('cc_home') }}" class="cc-card-back">
+        <i class="bi bi-arrow-left me-1"></i>All cards</a>
+    <div class="cc-card-page-actions">
+        <a class="btn btn-sm btn-primary"
+           href="{{ url_for('cc_review', cards_present=1, card_id=card.id,
+                            period=('%04d-%02d'|format(selected_statement.year, selected_statement.month)) if selected_statement else none,
+                            status='unreconciled') }}">
+            <i class="bi bi-list-check me-1"></i>Open in Xero review
+        </a>
+        <details class="dropdown">
+            <summary class="btn btn-sm btn-outline-secondary"><i class="bi bi-pencil me-1"></i>Rename</summary>
+            <form method="post" action="{{ url_for('cc_card_rename', card_id=card.id) }}"
+                  class="dropdown-menu show p-3 end-0" style="min-width:280px;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="statement_id" value="{{ selected_id or '' }}">
+                <label for="ccDisplayName" class="form-label small">Friendly display name</label>
+                <input id="ccDisplayName" name="display_name" maxlength="100" class="form-control form-control-sm"
+                       value="{{ card.display_name or '' }}" placeholder="{{ card.card_name }}">
+                <div class="form-text">The Xero card identity remains {{ card.card_name }}.</div>
+                <button class="btn btn-sm btn-primary mt-2 w-100">Save name</button>
+            </form>
+        </details>
+        {% if receipt_count %}
+        <a href="{{ url_for('cc_card_receipts_zip', card_id=card.id, statement_id=selected_id) }}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-file-earmark-zip me-1"></i>Download {{ receipt_count }} receipt{{ '' if receipt_count == 1 else 's' }} (.zip)</a>
+        {% endif %}
+        <form method="post" action="{{ url_for('cc_card_set_active', card_id=card.id) }}"
+              onsubmit="return confirm('Archive this card? It will disappear from cardholder portals, but all history and receipts stay available.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="active" value="0">
+            <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-archive me-1"></i>Archive</button>
+        </form>
+    </div>
+</div>
+
+{% if inbox_count %}
+<div class="alert alert-info d-flex align-items-center gap-2 py-2 px-3 mb-3">
+    <i class="bi bi-inbox-fill"></i>
+    <div class="small">
+        <strong>{{ inbox_count }} receipt{{ '' if inbox_count == 1 else 's' }}</strong> dropped off by the
+        cardholder, waiting for transactions to match against. They'll match them once you upload the
+        relevant statement.
+    </div>
+</div>
+{% endif %}
+
+{% set spends = lines|selectattr('category','equalto','spend')|selectattr('status','equalto','outstanding')|list %}
+{% set need = spends|rejectattr('id','in',covered)|list %}
+{% set others = lines|rejectattr('category','equalto','spend')|list %}
+
+{% set MON = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'] %}
+{% if statements %}
+<div class="cc-period-bar">
+    <span class="cc-period-label">Statement period</span>
+    {% if statements|length > 6 %}
+    <select class="form-select form-select-sm w-auto" aria-label="Choose statement month"
+            onchange="if(this.value) window.location=this.value">
+        {% for s in statements %}
+        <option value="{{ url_for('cc_card', card_id=card.id, statement_id=s.id) }}" {% if s.id == selected_id %}selected{% endif %}>
+            {{ MON[s.month] }} {{ s.year }} · {{ 'sent' if s.submitted_at else 'draft' }}
+        </option>
+        {% endfor %}
+    </select>
+    {% else %}
+    {% for s in statements %}
+    {% set is_sel = (s.id == selected_id) %}
+    <a href="{{ url_for('cc_card', card_id=card.id, statement_id=s.id) }}"
+       class="badge text-decoration-none border d-inline-flex align-items-center gap-1
+              {% if is_sel %}bg-primary text-white{% elif s.submitted_at %}bg-success-subtle text-success-emphasis{% else %}bg-light text-dark{% endif %}"
+       {% if is_sel %}aria-current="true"{% endif %}>
+        {% if s.submitted_at %}<i class="bi bi-send-check"></i>{% endif %}{{ MON[s.month] }} {{ s.year }}
+        <span class="opacity-75">· {{ 'sent' if s.submitted_at else 'draft' }}</span>
+    </a>
+    {% endfor %}
+    {% endif %}
+    {% if selected_statement and selected_statement.submitted_at %}
+    <form method="post" action="{{ url_for('cc_card_reopen', card_id=card.id, statement_id=selected_statement.id) }}" class="d-inline"
+          onsubmit="return confirm('Clear the sent-to-finance marker for this month?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-link btn-sm p-0 text-decoration-none">clear sent marker</button>
+    </form>
+    {% endif %}
+    {% if personal_count %}
+    <span class="badge bg-primary-subtle text-primary-emphasis border ms-auto">
+        <i class="bi bi-person-badge me-1"></i>{{ personal_count }} personal · R {{ "%.2f"|format(personal_cents/100) }} to repay</span>
+    {% endif %}
+    {% if ai_enabled %}
+    <form method="post" action="{{ url_for('cc_match_now', card_id=card.id) }}"
+          class="d-inline {% if not personal_count %}ms-auto{% endif %}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="statement_id" value="{{ selected_id }}">
+        <button class="btn btn-sm btn-outline-primary" title="Read this month's uploaded receipts and auto-match the clear ones now">
+            <i class="bi bi-magic me-1"></i>Match receipts now</button>
+    </form>
+    {% endif %}
+</div>
+{% if ai_enabled %}
+<div class="small text-muted mb-3 d-flex flex-wrap gap-2 align-items-center" role="status" aria-live="polite">
+    <i class="bi bi-magic me-1"></i>AI this month:
+    {% if ai_status.processing or ai_status.pending %}<span class="badge bg-info-subtle text-info-emphasis"><i class="bi bi-arrow-repeat me-1"></i>matching {{ ai_status.processing + ai_status.pending }}</span>{% endif %}
+    {% if ai_status.failed %}<span class="badge bg-danger-subtle text-danger-emphasis"><i class="bi bi-exclamation-triangle me-1"></i>{{ ai_status.failed }} failed</span>{% endif %}
+    <span class="text-success">{{ auto_matched }} receipt{{ '' if auto_matched == 1 else 's' }} matched</span>
+    {% if needs_review %}· <span class="text-warning-emphasis">{{ needs_review }} suggestion{{ '' if needs_review == 1 else 's' }} to review below</span>{% endif %}
+    {% if ai_status.last_processed_at %}<span>· last processed {{ ai_status.last_processed_at[:16] }}</span>{% endif %}
+    {% if ai_status.failed %}
+    <form method="post" action="{{ url_for('cc_retry_ai', card_id=card.id) }}" class="d-inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="statement_id" value="{{ selected_id }}">
+        <button class="btn btn-sm btn-outline-danger py-0"><i class="bi bi-arrow-clockwise me-1"></i>Retry</button>
+    </form>
+    {% endif %}
+</div>
+{% endif %}
+{% endif %}
+
+<nav class="section-switcher mb-3" aria-label="Card sections">
+    <a href="#cardTransactions" class="active"><i class="bi bi-list-check"></i>Transactions</a>
+    <a href="#cardAccess"><i class="bi bi-people"></i>Cardholders</a>
+</nav>
+<div class="row g-4">
+    <!-- Line items -->
+    <div class="col-12" id="cardTransactions">
+        <div class="card cc-ledger-card">
+            <div class="card-body cc-ledger-body">
+                <header class="cc-ledger-heading">
+                    <div>
+                        <p class="cc-ledger-eyebrow">Card reconciliation</p>
+                        <h2>Transactions</h2>
+                        <p>
+                            {{ MON[selected_statement.month] ~ ' ' ~ selected_statement.year if selected_statement else 'All activity' }}
+                            {% if date_filter %} · custom date range{% endif %}
+                        </p>
+                    </div>
+                    <span id="ccNeedBadge" class="cc-ledger-state {% if need %}is-waiting{% else %}is-complete{% endif %}"
+                          data-need="{{ need|length }}">
+                        <i class="bi {% if need %}bi-receipt-cutoff{% else %}bi-check2-circle{% endif %}"></i>
+                        {{ need|length }} {{ 'transaction needs' if need|length == 1 else 'transactions need' }} a receipt
+                    </span>
+                </header>
+                {# ── Completeness banner: coded + receipted progress for the
+                     outstanding spend lines shown. Green when both hit 100% =
+                     ready to reconcile in Xero. ── #}
+                {% if not date_filter and total_spend %}
+                {% set ready = (coded_count == total_spend and receipted_count == total_spend) %}
+                <div class="cc-ledger-metrics">
+                    <div>
+                        <span>Receipts</span>
+                        <strong><b data-cc="receipted">{{ receipted_count }}</b>/<b data-cc="total">{{ total_spend }}</b></strong>
+                        <small>{{ total_spend - receipted_count }} outstanding</small>
+                    </div>
+                    <div>
+                        <span>Account coding</span>
+                        <strong><b data-cc="coded">{{ coded_count }}</b>/<b data-cc="total">{{ total_spend }}</b></strong>
+                        <small>Confirmed in NORTHWIND</small>
+                    </div>
+                    <div class="is-ready">
+                        <span>Ready for Xero</span>
+                        <strong>{{ xero_ready_ids|length }}</strong>
+                        <small>Meets the finance rule</small>
+                    </div>
+                    <div class="is-done">
+                        <span>Reconciled</span>
+                        <strong data-cc-recon-count>{{ reconciled_count }}</strong>
+                        {% if reconciled_count %}
+                        <a href="{{ url_for('cc_card', card_id=card.id, statement_id=selected_id,
+                                            show_reconciled=(none if show_reconciled else 1)) }}">
+                            {{ 'Hide completed' if show_reconciled else 'Show completed' }}
+                        </a>
+                        {% else %}
+                        <small>None completed yet</small>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="cc-ledger-complete {% if not ready %}d-none{% endif %}" data-cc-ready>
+                    <i class="bi bi-check-circle-fill"></i>
+                    Receipts and account coding are complete for this statement.
+                </div>
+                <span class="d-none" data-cc-counts></span>
+                {% elif reconciled_count %}
+                <div class="cc-ledger-metrics is-single">
+                    <div class="is-done">
+                        <span>Reconciled</span>
+                        <strong data-cc-recon-count>{{ reconciled_count }}</strong>
+                        <a href="{{ url_for('cc_card', card_id=card.id, statement_id=selected_id,
+                                            show_reconciled=(none if show_reconciled else 1)) }}">
+                            {{ 'Hide completed' if show_reconciled else 'Show completed' }}
+                        </a>
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="cc-ledger-commandbar">
+                    <details class="cc-date-filter" {% if date_filter %}open{% endif %}>
+                        <summary>
+                            <i class="bi bi-calendar3"></i>
+                            {% if date_filter %}
+                            {{ date_from or 'Any date' }} to {{ date_to or 'Any date' }}
+                            {% else %}
+                            Filter by date
+                            {% endif %}
+                            <i class="bi bi-chevron-down"></i>
+                        </summary>
+                        <form method="get" class="cc-date-filter-form">
+                            <input type="hidden" name="statement_id" value="{{ selected_id or '' }}">
+                            <label>
+                                <span>From</span>
+                                <input type="date" name="from" value="{{ date_from or '' }}" class="form-control">
+                            </label>
+                            <label>
+                                <span>To</span>
+                                <input type="date" name="to" value="{{ date_to or '' }}" class="form-control">
+                            </label>
+                            <button class="btn btn-primary">Apply range</button>
+                            {% if date_filter %}
+                            <a href="{{ url_for('cc_card', card_id=card.id, statement_id=selected_id) }}"
+                               class="btn btn-link text-decoration-none">Clear</a>
+                            {% endif %}
+                            <small>Range results include unreconciled transactions from every statement month.</small>
+                        </form>
+                    </details>
+
+                    {% if spends %}
+                    <form id="ccBulkForm" method="post" action="{{ url_for('cc_card_bulk_lines', card_id=card.id) }}"
+                          class="cc-bulk-bar">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="statement_id" value="{{ selected_id }}">
+                        <span class="cc-bulk-count" data-cc-bulk-count>0 selected</span>
+                        {# JS fills this in after confirming, so incomplete rows are only
+                           ever closed off deliberately; a no-JS post stays strict. #}
+                        <input type="hidden" name="override" value="" data-cc-bulk-override>
+                        <button name="action" value="accept_ai" class="btn btn-sm btn-outline-primary"
+                                data-cc-bulk-action disabled
+                                onclick="return confirm('Accept only the selected high-confidence AI account suggestions you have reviewed?');">
+                            <i class="bi bi-magic me-1"></i>Accept AI codes</button>
+                        <button name="action" value="reconcile" class="btn btn-sm btn-success"
+                                data-cc-bulk-reconcile data-cc-bulk-action disabled>
+                            <i class="bi bi-check2-square me-1"></i>Mark done</button>
+                    </form>
+                    {% endif %}
+                </div>
+
+                {% if not spends %}
+                <div class="cc-ledger-empty">
+                    <i class="bi bi-check2-circle"></i>
+                    <div>
+                        <strong>No transactions need attention</strong>
+                        <p>{% if date_filter %}Nothing unreconciled falls inside this date range.{% else %}This card has no outstanding transactions.{% endif %}</p>
+                    </div>
+                </div>
+                {% else %}
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0 cc-transaction-table">
+                        <thead><tr>
+                            <th class="cc-check-cell"><input type="checkbox" aria-label="Select all visible transactions" data-cc-bulk-all></th>
+                            <th>Transaction</th>
+                            <th>Cardholder detail</th>
+                            <th>Xero account <span class="cc-column-note">advisory</span></th>
+                            <th class="text-end">Amount</th>
+                            <th>Evidence</th>
+                            <th class="text-end">Actions</th>
+                        </tr></thead>
+                        <tbody>
+                        {% for l in spends %}
+                        <tr class="cc-txn-row {% if l.xero_reconciled %}is-reconciled{% elif l.id in xero_ready_ids %}is-ready{% endif %}"
+                            data-date="{{ l.line_date or '' }}" data-line-id="{{ l.id }}">
+                            <td class="cc-check-cell"><input type="checkbox" name="line_id" value="{{ l.id }}" form="ccBulkForm"
+                                       aria-label="Select {{ l.reference }} on {{ l.line_date or 'unknown date' }}"></td>
+                            <td class="cc-transaction-main">
+                                <strong>{{ l.reference }}</strong>
+                                <span class="cc-transaction-date">{{ l.line_date or 'Date unavailable' }}</span>
+                                <div class="cc-transaction-tags">
+                                    {% if l.xero_reconciled %}
+                                    <span class="cc-row-state is-done"><i class="bi bi-check2-all"></i>Done · reconciled</span>
+                                    {% if l.xero_reconciled_override %}
+                                    <span class="cc-row-tag is-required"
+                                          title="Closed off by an admin while a receipt, reason, location or submission was still missing">
+                                        closed without full detail</span>
+                                    {% endif %}
+                                    {% elif l.id in xero_ready_ids %}
+                                    <span class="cc-row-state is-ready"><i class="bi bi-check2-circle"></i>Ready for Xero</span>
+                                    {% elif line_suggestions.get(l.id) %}
+                                    <span class="cc-row-state is-ai"><i class="bi bi-magic"></i>Match to review</span>
+                                    {% else %}
+                                    <span class="cc-row-state is-waiting"><i class="bi bi-person-exclamation"></i>Waiting on cardholder</span>
+                                    {% endif %}
+                                    {% if l.require_individual %}<span class="cc-row-tag is-required">Receipt required</span>{% endif %}
+                                    {% if l.vat_invoice_required %}<span class="cc-row-tag is-vat">VAT invoice requested</span>{% endif %}
+                                    {% if l.personal %}<span class="cc-row-tag is-personal">Personal · repay</span>{% endif %}
+                                </div>
+                            </td>
+                            <td class="cc-cardholder-detail">
+                                {% if l.reason %}
+                                <p>{{ l.reason }}</p>
+                                {% else %}
+                                <span class="cc-missing-detail">Reason missing</span>
+                                {% endif %}
+                                {% if l.location %}
+                                <span><i class="bi bi-geo-alt"></i>{{ l.location }}</span>
+                                {% else %}
+                                <span class="cc-missing-detail">Location missing</span>
+                                {% endif %}
+                            </td>
+                            {# ── Xero account coding. Pre-fills the confirmed code, else the AI
+                                 suggestion (amber outline until confirmed). Save learns the merchant
+                                 so it auto-codes next month; tick "all" to code every same-merchant
+                                 line this month at once. ── #}
+                            <td class="cc-account-cell">
+                                <form method="post" class="cc-account-form" data-line-id="{{ l.id }}"
+                                      data-has-ai="{{ '1' if l.ai_account_code else '' }}"
+                                      action="{{ url_for('cc_card_set_account', card_id=card.id, line_id=l.id) }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="statement_id" value="{{ l.statement_id }}">
+                                    {% if show_reconciled %}<input type="hidden" name="show_reconciled" value="1">{% endif %}
+                                    {% set sel = l.xero_account_code or l.ai_account_code %}
+                                    <select name="account_code" class="form-select form-select-sm cc-account-select
+                                            {% if l.xero_account_code %}border-success{% elif l.ai_account_code %}border-warning{% endif %}"
+                                            title="{{ l.ai_rationale or '' }}">
+                                        <option value="">— choose account —</option>
+                                        {% for code, name in accounts %}
+                                        <option value="{{ code }}" {% if code == sel %}selected{% endif %}>{{ code }} · {{ name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <div class="cc-account-meta">
+                                        <span class="cc-code-status">
+                                        {% if l.xero_account_code %}
+                                        <span class="text-success"><i class="bi bi-check-circle-fill"></i> coded</span>
+                                        {% elif l.ai_account_code %}
+                                        <span class="text-warning-emphasis"><i class="bi bi-magic"></i> AI{% if l.ai_needs_review %} · review{% endif %}</span>
+                                        {% endif %}
+                                        </span>
+                                        <label title="Also code every other transaction from this merchant this month">
+                                            <input type="checkbox" name="apply_all" value="1"> Same merchant</label>
+                                        <button class="cc-account-save" title="Save this Xero account">
+                                            <i class="bi bi-check2"></i><span class="visually-hidden">Save account</span>
+                                        </button>
+                                    </div>
+                                </form>
+                            </td>
+                            <td class="text-end text-nowrap cc-transaction-amount">R {{ "%.2f"|format((l.amount_cents|abs)/100) }}</td>
+                            <td class="cc-evidence-cell">
+                                {% set rcpts = line_receipts.get(l.id, []) %}
+                                {% if rcpts %}
+                                    {% for r in rcpts %}
+                                    {% set receipt_ext = (r.file_path.rsplit('.', 1)[-1]|lower) if r.file_path and '.' in r.file_path else '' %}
+                                    {% set preview_kind = 'image' if receipt_ext in browser_image_exts else ('pdf' if receipt_ext == 'pdf' else 'file') %}
+                                    <div class="d-inline-block me-1 mb-1 align-top text-center">
+                                        <a href="{{ url_for('cc_portal_file', receipt_id=r.id) }}" target="_blank" rel="noopener"
+                                           class="d-block cc-rcpt-preview" data-name="{{ r.download_name or r.original_filename }}"
+                                           data-preview-kind="{{ preview_kind }}" title="{{ r.download_name or r.original_filename }}">
+                                            {% if preview_kind == 'image' %}
+                                            <img src="{{ url_for('cc_portal_file', receipt_id=r.id) }}"
+                                                 alt="{{ r.download_name or r.original_filename or 'Receipt' }}"
+                                                 style="max-height:72px; max-width:110px; border:1px solid #d1d5db; border-radius:6px; object-fit:cover;">
+                                            {% elif preview_kind == 'pdf' %}
+                                            <span class="badge bg-success text-decoration-none"><i class="bi bi-file-earmark-text"></i> view PDF</span>
+                                            {% else %}
+                                            <span class="badge bg-light text-dark border text-decoration-none">
+                                                <i class="bi bi-file-earmark-arrow-down"></i>
+                                                {{ (r.original_filename.rsplit('.', 1)[-1] if r.original_filename and '.' in r.original_filename else 'file')|upper }}
+                                            </span>
+                                            {% endif %}
+                                        </a>
+                                        <form method="post" action="{{ url_for('cc_card_unlink', card_id=card.id) }}"
+                                              onsubmit="return confirm('Unmatch this receipt from this transaction? It moves back to the unmatched bucket.');">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                            <input type="hidden" name="receipt_id" value="{{ r.id }}">
+                                            <input type="hidden" name="line_id" value="{{ l.id }}">
+                                            <input type="hidden" name="statement_id" value="{{ l.statement_id }}">
+                                            <button class="btn btn-link btn-sm p-0 text-danger" style="font-size:.72rem;"
+                                                    title="Unmatch this receipt from this transaction">
+                                                <i class="bi bi-x-circle"></i> unmatch</button>
+                                        </form>
+                                    </div>
+                                    {% endfor %}
+                                {% else %}<span class="cc-receipt-missing"><i class="bi bi-receipt"></i>Receipt missing</span>{% endif %}
+                                {% if ai_enabled and line_suggestions.get(l.id) %}
+                                <div class="cc-match-suggestions" aria-label="Suggested receipt matches">
+                                    {% for sg in line_suggestions.get(l.id) %}
+                                    {% set sg_ext = (sg.original_filename.rsplit('.', 1)[-1]|lower) if sg.original_filename and '.' in sg.original_filename else '' %}
+                                    {% set sg_preview_kind = 'image' if sg_ext in browser_image_exts else ('pdf' if sg_ext == 'pdf' else 'file') %}
+                                    <article class="cc-match-suggestion">
+                                        <a href="{{ url_for('cc_portal_file', receipt_id=sg.receipt_id) }}"
+                                           target="_blank" rel="noopener"
+                                           class="cc-rcpt-preview cc-match-preview"
+                                           data-name="{{ sg.original_filename or 'Suggested receipt' }}"
+                                           data-preview-kind="{{ sg_preview_kind }}"
+                                           aria-label="{{ 'Preview' if sg_preview_kind in ['image', 'pdf'] else 'Open' }} suggested receipt {{ sg.original_filename or '' }}">
+                                            {% if sg_preview_kind == 'image' %}
+                                            <img src="{{ url_for('cc_portal_file', receipt_id=sg.receipt_id) }}"
+                                                 alt="Suggested receipt {{ sg.original_filename or '' }}"
+                                                 width="56" height="64" loading="lazy">
+                                            {% elif sg_preview_kind == 'pdf' %}
+                                            <span class="cc-match-file"><i class="bi bi-file-earmark-pdf"></i><b>PDF</b></span>
+                                            {% else %}
+                                            <span class="cc-match-file"><i class="bi bi-file-earmark-arrow-down"></i><b>{{ sg_ext|upper or 'FILE' }}</b></span>
+                                            {% endif %}
+                                            <span class="cc-match-zoom"><i class="bi bi-arrows-fullscreen"></i></span>
+                                        </a>
+                                        <div class="cc-match-copy" title="{{ sg.original_filename or 'Suggested receipt' }}">
+                                            <strong>{{ sg.ai_vendor or sg.original_filename or 'Suggested receipt' }}</strong>
+                                            <span>{% if sg.ai_date %}{{ sg.ai_date }} · {% endif %}R {{ '%.2f'|format(((sg.ai_total_cents if sg.ai_total_cents is not none else l.amount_cents)|abs)/100) }}</span>
+                                            <small>Open receipt before confirming</small>
+                                        </div>
+                                        <div class="cc-match-actions">
+                                        <form method="post" class="d-inline"
+                                              action="{{ url_for('cc_confirm_suggestion', card_id=card.id, suggestion_id=sg.id) }}">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                            <button class="cc-match-confirm"
+                                                    title="Confirm {{ sg.original_filename or 'this receipt' }} for this transaction">
+                                                <i class="bi bi-magic"></i> confirm</button>
+                                        </form>
+                                        <form method="post" class="d-inline"
+                                              action="{{ url_for('cc_reject_suggestion', card_id=card.id, suggestion_id=sg.id) }}">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                            <button class="cc-match-dismiss"
+                                                    aria-label="Dismiss suggested receipt {{ sg.original_filename or '' }}"
+                                                    title="This is not the correct receipt">
+                                                <i class="bi bi-x-lg"></i></button>
+                                        </form>
+                                        </div>
+                                    </article>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                            </td>
+                            <td class="text-end text-nowrap">
+                                <div class="cc-row-actions">
+                                <form method="post" class="d-inline"
+                                      action="{{ url_for('cc_card_toggle_vat_invoice', card_id=card.id, line_id=l.id) }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="statement_id" value="{{ selected_id }}">
+                                    {% if show_reconciled %}<input type="hidden" name="show_reconciled" value="1">{% endif %}
+                                    <button class="cc-row-action {% if l.vat_invoice_required %}is-vat{% endif %}"
+                                            aria-label="{{ 'Clear VAT tax invoice request' if l.vat_invoice_required else 'Request VAT tax invoice' }}"
+                                            title="{{ 'VAT tax invoice requested — click to clear after checking it' if l.vat_invoice_required else 'Ask the cardholder for a tax invoice showing the company VAT number' }}">
+                                        <i class="bi {% if l.vat_invoice_required %}bi-file-earmark-check-fill{% else %}bi-file-earmark-plus{% endif %}"></i>
+                                    </button>
+                                </form>
+                                {# ── "Done" tick: reconciled in Xero. Removes the transaction from
+                                     BOTH this working view and the cardholder's checklist. Always
+                                     available: a transaction that isn't finance-ready yet posts an
+                                     explicit override (confirmed first) and is recorded as such. ── #}
+                                {% set row_ready = l.id in xero_ready_ids %}
+                                <form method="post" class="d-inline cc-recon-form" data-line-id="{{ l.id }}"
+                                      data-cc-ready="{{ '1' if row_ready else '0' }}"
+                                      data-cc-state="{{ 'done' if l.xero_reconciled else 'open' }}"
+                                      action="{{ url_for('cc_card_toggle_reconciled', card_id=card.id, line_id=l.id) }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="statement_id" value="{{ selected_id }}">
+                                    {% if show_reconciled %}<input type="hidden" name="show_reconciled" value="1">{% endif %}
+                                    {% if not l.xero_reconciled and not row_ready %}
+                                    <input type="hidden" name="override" value="1">
+                                    {% endif %}
+                                    <button class="cc-row-action {% if l.xero_reconciled %}is-success{% endif %}"
+                                            aria-label="{{ 'Reopen this transaction' if l.xero_reconciled else 'Mark done — reconciled in Xero' }}"
+                                            title="{{ 'Done — reconciled in Xero. Untick to reopen it for you and the cardholder.'
+                                                      if l.xero_reconciled else
+                                                      ('Mark done — reconciled in Xero. Hides it from your view and the cardholder\'s.'
+                                                       if row_ready else
+                                                       'Mark done anyway — this transaction is still missing detail, and closing it hides it from the cardholder too.') }}">
+                                        <i class="bi {% if l.xero_reconciled %}bi-check2-square{% else %}bi-square{% endif %}"></i></button>
+                                </form>
+                                <form method="post" class="d-inline" action="{{ url_for('cc_card_toggle_require', card_id=card.id, line_id=l.id) }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button class="cc-row-action {% if l.require_individual %}is-required{% endif %}"
+                                            aria-label="{{ 'Stop requiring an individual receipt' if l.require_individual else 'Require an individual receipt' }}"
+                                            title="{{ 'Stop requiring an individual receipt' if l.require_individual else 'Require an individual receipt' }}">
+                                        <i class="bi {% if l.require_individual %}bi-flag-fill{% else %}bi-flag{% endif %}"></i></button>
+                                </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if others %}
+        <details class="card mt-3">
+            <summary class="card-body py-3 text-muted" style="cursor:pointer;list-style:none;">
+                <i class="bi bi-eye-slash me-1"></i>Not shown to cardholder — transfers &amp; bank fees ({{ others|length }})
+            </summary>
+            <div class="card-body pt-0">
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <tbody>
+                        {% for l in others %}
+                        <tr class="text-muted">
+                            <td class="text-nowrap">{{ l.line_date or '—' }}</td>
+                            <td>{{ l.reference }}</td>
+                            <td>
+                                {% if l.category == 'transfer' %}<span class="badge bg-info-subtle text-info-emphasis">transfer</span>
+                                {% else %}<span class="badge bg-secondary-subtle text-secondary-emphasis">bank fee · N/A</span>{% endif %}
+                            </td>
+                            <td class="text-end text-nowrap">R {{ "%.2f"|format((l.amount_cents|abs)/100) }}</td>
+                        </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </details>
+        {% endif %}
+
+        <!-- Unmatched receipts (the month's bucket — uploaded but not linked to any line) -->
+        <div class="card mt-3">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h5 class="card-title mb-0"><i class="bi bi-inbox me-1"></i>Unmatched receipts</h5>
+                    <span class="badge {% if bucket %}bg-warning text-dark{% else %}bg-success{% endif %}">{{ bucket|length }}</span>
+                </div>
+                {% if not bucket %}
+                {% if receipt_count %}
+                <p class="text-muted mb-0"><i class="bi bi-check-circle-fill text-success me-1"></i>
+                    Every receipt uploaded this month is matched to a transaction.</p>
+                {% else %}
+                <p class="text-muted mb-0"><i class="bi bi-inbox me-1"></i>
+                    No receipts have been uploaded for this month yet.</p>
+                {% endif %}
+                {% else %}
+                <p class="text-muted small mb-3">Receipts/invoices uploaded this month that aren't linked to any
+                    transaction yet. Match one to a transaction, or delete it if it isn't needed.</p>
+                <div class="row g-3">
+                {% for r in bucket %}
+                    {% set receipt_ext = (r.file_path.rsplit('.', 1)[-1]|lower) if r.file_path and '.' in r.file_path else '' %}
+                    {% set preview_kind = 'image' if receipt_ext in browser_image_exts else ('pdf' if receipt_ext == 'pdf' else 'file') %}
+                    <div class="col-12 col-md-6">
+                        <div class="border rounded p-2 h-100 d-flex gap-2">
+                            <a href="{{ url_for('cc_portal_file', receipt_id=r.id) }}" target="_blank" rel="noopener"
+                               class="flex-shrink-0 cc-rcpt-preview" data-name="{{ r.download_name or r.original_filename }}"
+                               data-preview-kind="{{ preview_kind }}" title="{{ r.original_filename }}">
+                                {% if preview_kind == 'image' %}
+                                <img src="{{ url_for('cc_portal_file', receipt_id=r.id) }}"
+                                     alt="{{ r.download_name or r.original_filename or 'Receipt' }}"
+                                     style="height:64px; width:64px; object-fit:cover; border:1px solid #d1d5db; border-radius:6px;">
+                                {% elif preview_kind == 'pdf' %}
+                                <span class="badge bg-light text-dark border"><i class="bi bi-file-earmark-text"></i> PDF</span>
+                                {% else %}
+                                <span class="badge bg-light text-dark border">
+                                    <i class="bi bi-file-earmark-arrow-down"></i>
+                                    {{ (r.original_filename.rsplit('.', 1)[-1] if r.original_filename and '.' in r.original_filename else 'file')|upper }}
+                                </span>
+                                {% endif %}
+                            </a>
+                            <div class="flex-grow-1" style="min-width:0;">
+                                <div class="small text-truncate" title="{{ r.download_name or r.original_filename }}">
+                                    {{ r.download_name or r.original_filename }}</div>
+                                {% if r.ai_vendor or r.ai_date or r.ai_total_cents %}
+                                <div class="small text-muted text-truncate" title="What the AI read off this receipt">
+                                    {{ r.ai_vendor or '?' }} · {{ r.ai_date or '?' }} · R{{ '%.2f'|format((r.ai_total_cents or 0)/100) }}</div>
+                                {% endif %}
+                                <form method="post" action="{{ url_for('cc_card_link', card_id=card.id) }}" class="d-flex gap-1 mt-1">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="receipt_id" value="{{ r.id }}">
+                                    <input type="hidden" name="statement_id" value="{{ selected_id }}">
+                                    <select name="line_id" class="form-select form-select-sm" required>
+                                        <option value="" selected disabled>Match to transaction…</option>
+                                        {% for l in spends %}
+                                        <option value="{{ l.id }}">{{ l.line_date or '—' }} · {{ l.reference }} · R{{ '%.2f'|format((l.amount_cents|abs)/100) }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <button class="btn btn-sm btn-outline-primary flex-shrink-0"
+                                            title="Match this receipt to the chosen transaction"><i class="bi bi-link-45deg"></i></button>
+                                </form>
+                            </div>
+                            <form method="post" action="{{ url_for('cc_card_delete_receipt', card_id=card.id, receipt_id=r.id) }}"
+                                  class="flex-shrink-0"
+                                  onsubmit="return confirm('Delete this receipt permanently? This removes the uploaded file.');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button class="btn btn-sm btn-link text-danger p-0" title="Delete this receipt"><i class="bi bi-trash"></i></button>
+                            </form>
+                        </div>
+                    </div>
+                {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Access -->
+    <div class="col-12" id="cardAccess">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-title">Who can access this card</h6>
+                <p class="text-muted small">Cardholders log in with their email and their own
+                    password (shown once when you grant access). Add everyone who uses this card.</p>
+
+                {# Chase everyone at once. Hidden when there is nothing to chase,
+                   so the button never sends an email saying "0 transactions". #}
+                {% if users and chase_count %}
+                <form method="post" action="{{ url_for('cc_card_remind', card_id=card.id) }}" class="mb-3"
+                      onsubmit="return confirm('Email {{ users|length }} cardholder(s) the {{ chase_count }} outstanding transaction(s) on this card?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-sm btn-primary w-100"{% if not mail_ready %} disabled{% endif %}>
+                        <i class="bi bi-envelope me-1"></i>{{ 'Email everyone the %d outstanding transaction%s'|format(chase_count, '' if chase_count == 1 else 's') }}
+                    </button>
+                    <div class="form-text small">
+                        {% if mail_ready %}
+                        Each person gets their own copy, listing every month still open, with a link
+                        straight to this card's upload page.
+                        {% else %}
+                        Email is not set up yet — finish <a href="{{ url_for('admin_email') }}">Settings → Email</a> first.
+                        {% endif %}
+                    </div>
+                </form>
+                {% elif users %}
+                <p class="text-success small mb-3"><i class="bi bi-check-circle me-1"></i>
+                    Nothing outstanding on this card — nobody needs chasing.</p>
+                {% endif %}
+
+                {% if users %}
+                <ul class="list-group list-group-flush mb-3">
+                    {% for u in users %}
+                    <li class="list-group-item px-0">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <span>
+                                <div>{{ u.email }}
+                                    {% if not u.has_login %}<span class="badge bg-warning text-dark ms-1">no password</span>{% endif %}
+                                    {% if u.has_login and not u.is_active %}<span class="badge bg-danger ms-1">disabled</span>{% endif %}
+                                    {% if u.is_admin %}<span class="badge bg-secondary ms-1">admin</span>{% endif %}
+                                    {% if u.is_rm %}<span class="badge bg-info text-dark ms-1">regional manager</span>{% endif %}
+                                    {% if u.is_store_login %}<span class="badge bg-light text-dark border ms-1">store login</span>{% endif %}
+                                    {% if u.card_count > 1 %}<span class="badge bg-light text-dark border ms-1">{{ u.card_count }} cards</span>{% endif %}
+                                </div>
+                                {% if u.name or u.access_note %}
+                                <div class="small text-muted">{{ u.name }}{% if u.name and u.access_note %} · {% endif %}{{ u.access_note }}</div>
+                                {% endif %}
+                            </span>
+                            <form method="post" action="{{ url_for('cc_card_delete_user', user_id=u.id) }}"
+                                  onsubmit="return confirm('Remove access for {{ u.email }}?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="card_id" value="{{ card.id }}">
+                                <button class="btn btn-sm btn-link text-danger p-0" title="Remove access">
+                                    <i class="bi bi-x-circle"></i></button>
+                            </form>
+                        </div>
+                        <div class="d-flex gap-3 mt-1">
+                            <form method="post" action="{{ url_for('cc_card_reset_password', card_id=card.id) }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="email" value="{{ u.email }}">
+                                {% if u.has_login and not u.is_active %}<input type="hidden" name="enable_account" value="1">{% endif %}
+                                <button class="btn btn-sm btn-link p-0 text-decoration-none small">
+                                    <i class="bi bi-key me-1"></i>{% if not u.has_login %}Set password{% elif not u.is_active %}Enable &amp; reset password{% else %}Reset password{% endif %}</button>
+                            </form>
+                            {% if chase_count and mail_ready %}
+                            <form method="post" action="{{ url_for('cc_card_remind', card_id=card.id) }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="email" value="{{ u.email }}">
+                                <button class="btn btn-sm btn-link p-0 text-decoration-none small"
+                                        title="Email only this person">
+                                    <i class="bi bi-envelope me-1"></i>Chase</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-warning small"><i class="bi bi-exclamation-triangle-fill me-1"></i>
+                    No one can access this card yet.</p>
+                {% endif %}
+
+                <form method="post" action="{{ url_for('cc_card_add_user', card_id=card.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-2">
+                        <input class="form-control form-control-sm" type="email" name="email"
+                               placeholder="email@northwind-apparel.example" required>
+                    </div>
+                    <div class="row g-2 mb-2">
+                        <div class="col-6"><input class="form-control form-control-sm" name="name" placeholder="Name (optional)"></div>
+                        <div class="col-6"><input class="form-control form-control-sm" name="access_note" placeholder="Role (optional)"></div>
+                    </div>
+                    <div class="mb-2">
+                        <input class="form-control form-control-sm" name="password"
+                               placeholder="Password (optional — auto-generated if blank)">
+                    </div>
+                    <button class="btn btn-sm btn-primary w-100"><i class="bi bi-person-plus me-1"></i>Grant access</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<details class="card border-danger-subtle mt-4">
+    <summary class="card-body py-3 text-danger" style="cursor:pointer;">Danger zone</summary>
+    <div class="card-body pt-0">
+        <p class="small text-muted">Permanent deletion removes every statement, transaction, receipt and access grant. Archive the card unless this data genuinely must be destroyed.</p>
+        <form method="post" action="{{ url_for('cc_card_delete', card_id=card.id) }}"
+              onsubmit="return confirm('Permanently delete this card and ALL of its data? This cannot be undone.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-sm btn-danger"><i class="bi bi-trash me-1"></i>Permanently delete card</button>
+        </form>
+    </div>
+</details>
+
+<!-- Receipt quick-preview: slides out on the right so you can confirm a receipt
+     without leaving the page (images inline, PDFs in a frame). -->
+<div id="ccPrev" class="cc-prev" hidden>
+  <div class="cc-prev-backdrop" data-ccprev-close></div>
+  <aside class="cc-prev-panel" role="dialog" aria-modal="true" aria-labelledby="ccPrevName" tabindex="-1">
+    <div class="cc-prev-bar">
+      <span class="cc-prev-name" id="ccPrevName"></span>
+      <a class="cc-prev-ext" id="ccPrevExt" href="#" target="_blank" rel="noopener"
+         aria-label="Open receipt in new tab" title="Open in new tab"><i class="bi bi-box-arrow-up-right"></i></a>
+      <button type="button" class="cc-prev-close" data-ccprev-close aria-label="Close">&times;</button>
+    </div>
+    <div class="cc-prev-body" id="ccPrevBody"></div>
+  </aside>
+</div>
+
+<script src="{{ url_for('static', filename='cc-card-workspace.js') }}" defer></script>
+<script>
+// ── AJAX admin coding: code an account / tick "reconciled" without a full page
+//    reload (the reload-per-line slog). Progressive enhancement — with JS off the
+//    forms still POST normally and the server redirects. ──────────────────────
+(function () {
+  // Apply server-truth completeness counts to the banner + "need receipt" badge.
+  function applyProgress(p) {
+    if (!p) return;
+    document.querySelectorAll('[data-cc="coded"]').forEach(function (el) { el.textContent = p.coded_count; });
+    document.querySelectorAll('[data-cc="receipted"]').forEach(function (el) { el.textContent = p.receipted_count; });
+    document.querySelectorAll('[data-cc="total"]').forEach(function (el) { el.textContent = p.total_spend; });
+    document.querySelectorAll('[data-cc-recon-count]').forEach(function (el) { el.textContent = p.reconciled_count; });
+    var badge = document.getElementById('ccNeedBadge');
+    if (badge) {
+      var noun = p.need_count === 1 ? 'transaction needs' : 'transactions need';
+      badge.innerHTML = '<i class="bi ' + (p.need_count ? 'bi-receipt-cutoff' : 'bi-check2-circle') +
+        '"></i> ' + p.need_count + ' ' + noun + ' a receipt';
+      badge.classList.toggle('is-waiting', p.need_count > 0);
+      badge.classList.toggle('is-complete', p.need_count === 0);
+    }
+    // Ready state: both coded & receipted at 100% of a non-empty statement.
+    var ready = p.total_spend > 0 && p.coded_count === p.total_spend && p.receipted_count === p.total_spend;
+    var readyEl = document.querySelector('[data-cc-ready]');
+    var countsEl = document.querySelector('[data-cc-counts]');
+    if (readyEl) readyEl.classList.toggle('d-none', !ready);
+    if (countsEl) countsEl.classList.toggle('d-none', ready);
+  }
+
+  function postForm(form) {
+    return fetch(form.action, {
+      method: 'POST', body: new FormData(form), headers: { 'X-Requested-With': 'fetch' }
+    }).then(function (r) {
+      if (r.status === 404) throw new Error('gone');
+      return r.json().catch(function () { throw new Error('bad'); })
+        .then(function (data) { if (!r.ok || !data.ok) throw new Error(data && data.error || 'save failed'); return data; });
+    });
+  }
+
+  // Account coding.
+  document.addEventListener('submit', function (e) {
+    var form = e.target.closest('.cc-account-form');
+    if (!form) return;
+    e.preventDefault();
+    var code = (form.querySelector('.cc-account-select') || {}).value || '';
+    var applyAll = form.querySelector('input[name="apply_all"]:checked');
+    // Clearing a code, or bulk-coding a merchant, changes several rows — a reload
+    // keeps every row + count exactly right for those less-frequent actions.
+    if (!code || applyAll) {
+      postForm(form).then(function () { window.location.reload(); })
+        .catch(function () { showToast('Could not save — please try again.', 'danger'); });
+      return;
+    }
+    var btn = form.querySelector('button');
+    if (btn) btn.disabled = true;
+    postForm(form).then(function (data) {
+      var sel = form.querySelector('.cc-account-select');
+      if (sel) { sel.classList.remove('border-warning'); sel.classList.add('border-success'); }
+      var status = form.querySelector('.cc-code-status');
+      if (status) status.innerHTML = '<span class="text-success"><i class="bi bi-check-circle-fill"></i> coded</span>';
+      applyProgress(data.progress);
+      showToast('Coded to ' + data.code + ' · ' + data.name, 'success');
+    }).catch(function (err) {
+      showToast(err.message === 'save failed' ? 'That account code is not on the list.'
+                                              : 'Could not save — please try again.', 'danger');
+    }).finally(function () { if (btn) btn.disabled = false; });
+  });
+
+  // "Done — reconciled in Xero" tick.
+  document.addEventListener('submit', function (e) {
+    var form = e.target.closest('.cc-recon-form');
+    if (!form) return;
+    e.preventDefault();
+    // Closing off a transaction that still has gaps also takes it away from the
+    // cardholder, so say so and get a deliberate yes before posting the override.
+    if (form.dataset.ccState === 'open' && form.dataset.ccReady !== '1') {
+      if (!confirm('This transaction is still missing a receipt, reason, location ' +
+                   'or its submission.\n\nMark it done anyway? It disappears from ' +
+                   'your view and from the cardholder\'s, and is recorded as ' +
+                   'closed without full detail.')) return;
+      // Set the flag here rather than trusting the markup: a row unticked
+      // earlier in this page's life no longer carries the server-rendered one.
+      var flag = form.querySelector('input[name="override"]');
+      if (!flag) {
+        flag = document.createElement('input');
+        flag.type = 'hidden';
+        flag.name = 'override';
+        form.appendChild(flag);
+      }
+      flag.value = '1';
+    }
+    var showingReconciled = !!form.querySelector('input[name="show_reconciled"]');
+    var row = form.closest('.cc-txn-row');
+    postForm(form).then(function (data) {
+      if (data.reconciled && !showingReconciled && row) {
+        // Leaves the working view — fade it out.
+        row.style.transition = 'opacity .25s';
+        row.style.opacity = '0';
+        setTimeout(function () {
+          row.remove();
+          document.dispatchEvent(new Event('cc:rows-changed'));
+        }, 260);
+        showToast(data.forced
+          ? 'Marked done despite the missing detail — hidden from your view and the cardholder\'s.'
+          : 'Marked done — hidden from your view and the cardholder\'s.',
+          data.forced ? 'warning' : 'success');
+      } else {
+        // Toggled while viewing completed lines — just restyle the button.
+        var btn = form.querySelector('button');
+        var icon = form.querySelector('i');
+        if (btn) btn.classList.toggle('is-success', data.reconciled);
+        if (icon) { icon.className = 'bi ' + (data.reconciled ? 'bi-check2-square' : 'bi-square'); }
+        form.dataset.ccState = data.reconciled ? 'done' : 'open';
+        showToast(data.reconciled ? 'Marked done — reconciled in Xero.'
+                                  : 'Reopened — back in your view and the cardholder\'s.', 'info');
+      }
+      applyProgress(data.progress);
+    }).catch(function (err) {
+      showToast(err.message || 'Could not update — please try again.', 'danger');
+    });
+  });
+})();
+</script>
+{% endblock %}

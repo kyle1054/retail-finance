@@ -1,0 +1,762 @@
+{% extends 'cash_base.html' %}
+{% block title %}Regional dashboard — NORTHWIND{% endblock %}
+{% block topright %}{% endblock %}
+
+{# ── reusable inline-SVG charts (server-rendered; CSP-safe) ─────────────────── #}
+{% macro hbars(chart) %}
+{% if chart and chart.rows %}
+<svg viewBox="0 0 {{ chart.w }} {{ chart.h }}" width="100%" height="{{ chart.h }}" preserveAspectRatio="xMinYMin meet" style="max-width:100%;display:block;" role="img" aria-label="{{ chart.summary }}">
+  <desc>{{ chart.summary }}</desc>
+  {% for r in chart.rows %}
+  {% if r.drill_key %}<g class="rm-chart-drill" role="button" tabindex="0" data-category-key="{{ r.drill_key }}" aria-controls="rmCategoryDetail" aria-expanded="false" aria-label="Compare {{ r.label }} across stores, total R {{ '%.2f'|format(r.value) }}">
+  <rect class="rm-chart-hit" x="0" y="{{ r.y - 8 }}" width="{{ chart.w }}" height="44" rx="7"></rect>
+  {% endif %}
+  <text x="{{ r.label_x }}" y="{{ r.text_y }}" text-anchor="end" font-size="11.5" fill="#615b5c" font-family="Helvetica,Arial,sans-serif">{{ r.label|truncate(26, true, '…') }}</text>
+  {% if r.url %}<a href="{{ r.url }}" aria-label="Open {{ r.label }}: R {{ '%.2f'|format(r.value) }}">{% endif %}
+  <rect class="rm-chart-bar{% if r.url %} is-link{% endif %}" x="{{ r.x }}" y="{{ r.y }}" width="{{ r.w }}" height="{{ r.h }}" rx="4" fill="{{ r.color }}"><title>{{ r.label }}: R {{ r.value|rands }}</title></rect>
+  {% if r.url %}</a>{% endif %}
+  <text x="{{ r.val_x }}" y="{{ r.text_y }}" font-size="11" fill="#403c3a" font-family="Helvetica,Arial,sans-serif">R {{ "%.0f"|format(r.value) }}</text>
+  {% if r.drill_key %}<text class="rm-chart-chevron" x="{{ chart.w - 10 }}" y="{{ r.text_y }}" text-anchor="end" font-size="12" fill="#a8a39b" aria-hidden="true">›</text></g>{% endif %}
+  {% endfor %}
+</svg>
+<p class="rm-chart-summary">{{ chart.summary }}</p>
+{% else %}
+<div style="padding:22px;text-align:center;color:#8a857d;font-size:13px;">Nothing to chart in this range.</div>
+{% endif %}
+{% endmacro %}
+
+{% macro columns(chart) %}
+{% if chart and chart.cols %}
+<svg viewBox="0 0 {{ chart.w }} {{ chart.h }}" width="100%" height="{{ chart.h }}" preserveAspectRatio="xMinYMin meet" style="max-width:100%;display:block;" role="img" aria-label="{{ chart.summary }}">
+  <desc>{{ chart.summary }}</desc>
+  <line x1="{{ chart.pad_left }}" y1="{{ chart.baseline_y }}" x2="{{ chart.right_x }}" y2="{{ chart.baseline_y }}" stroke="rgba(28,28,28,0.15)" stroke-width="1"></line>
+  <text x="{{ chart.pad_left }}" y="11" font-size="9" fill="#8a857d">Expenses max R {{ "%.0f"|format(chart.exp_max) }}</text>
+  <text x="{{ chart.right_x }}" y="11" text-anchor="end" font-size="9" fill="#8a857d">Float R {{ "%.0f"|format(chart.close_max) }}</text>
+  <text x="{{ chart.right_x }}" y="{{ chart.baseline_y - 4 }}" text-anchor="end" font-size="9" fill="#8a857d">R {{ "%.0f"|format(chart.close_min) }}</text>
+  {% for c in chart.cols %}
+  <rect x="{{ c.x }}" y="{{ c.y }}" width="{{ c.w }}" height="{{ c.h }}" rx="2" fill="#c98a76"><title>{{ c.label }} · Exp R {{ c.value|rands }}</title></rect>
+  {% if c.show_label %}<text x="{{ c.cx }}" y="{{ c.axis_y }}" text-anchor="middle" font-size="9.5" fill="#a8a39b" font-family="Helvetica,Arial,sans-serif">{{ c.label }}</text>{% endif %}
+  {% endfor %}
+  <polyline points="{{ chart.polyline }}" fill="none" stroke="#1c1c1c" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"></polyline>
+</svg>
+<div style="display:flex;gap:18px;font-size:11px;color:#8a857d;padding:6px 6px 0;">
+  <span><span style="display:inline-block;width:10px;height:10px;background:#c98a76;border-radius:2px;vertical-align:middle;"></span> Daily expenses</span>
+  <span><span style="display:inline-block;width:14px;height:2px;background:#1c1c1c;vertical-align:middle;"></span> Closing float</span>
+</div>
+<p class="rm-chart-summary">{{ chart.summary }}</p>
+{% else %}
+<div style="padding:22px;text-align:center;color:#8a857d;font-size:13px;">No activity to chart in this range.</div>
+{% endif %}
+{% endmacro %}
+
+{% block content %}
+{% set sales_arg = 1 if include_sales else none %}
+
+<section class="rm-page-head" aria-labelledby="rmPageTitle">
+    <div>
+        <div class="rm-kicker"><i class="bi bi-shield-check"></i> {{ dash_kicker }}</div>
+        <h1 id="rmPageTitle">{{ page_title }}</h1>
+        <p>{{ sel_store if view == 'store' and sel_store else (stores|length ~ ' stores') }} · {{ range_label }}</p>
+    </div>
+    <div class="rm-page-owner"><i class="bi bi-graph-up-arrow"></i><span>{{ rm_name }}</span></div>
+</section>
+
+{% if regions is not none %}
+{# Admin-only: pick "All stores" (overall) or scope to one RM's region. #}
+<form class="rm-region-bar" id="rmRegionForm" method="get" action="{{ url_for('admin_cash_dashboard') }}">
+    <input type="hidden" name="view" value="{{ view }}">
+    {% if sel_store %}<input type="hidden" name="store" value="{{ sel_store }}">{% endif %}
+    <input type="hidden" name="start" value="{{ start }}">
+    <input type="hidden" name="end" value="{{ end }}">
+    {% if include_sales %}<input type="hidden" name="sales" value="1">{% endif %}
+    <label for="rmRegionSelect"><i class="bi bi-geo-alt-fill"></i> Region</label>
+    <select id="rmRegionSelect" name="region" class="cr-input">
+        <option value="all" {% if sel_region == 'all' %}selected{% endif %}>All stores (overall)</option>
+        {% for rg in regions %}
+        <option value="{{ rg.email }}" {% if sel_region == rg.email %}selected{% endif %}>{{ rg.name }} — {{ rg.count }} store{{ '' if rg.count == 1 else 's' }}</option>
+        {% endfor %}
+    </select>
+    <noscript><button class="cr-btn" type="submit">View</button></noscript>
+</form>
+{% endif %}
+
+<section class="rm-ops-grid" aria-label="Regional reporting status">
+    <div class="rm-ops-card {% if reported_count == stores|length and stores %}is-good{% endif %}">
+        <i class="bi bi-shop"></i><div><strong>{{ reported_count }}/{{ stores|length }}</strong><span>Stores reported</span></div>
+    </div>
+    <a class="rm-ops-card {% if attention_count %}is-alert{% else %}is-good{% endif %}" href="#rmAttention">
+        <i class="bi bi-exclamation-circle"></i><div><strong>{{ attention_count }}</strong><span>Need attention</span></div>
+    </a>
+    <div class="rm-ops-card"><i class="bi bi-calendar-check"></i><div><strong>{{ entries_current_through }}</strong><span>Entries current through</span></div></div>
+    <div class="rm-ops-card"><i class="bi bi-clock-history"></i><div><strong>{{ last_updated }}</strong><span>Last updated</span></div></div>
+</section>
+
+<details class="rm-attention-panel" id="rmAttention" {% if attention_count %}open{% endif %}>
+    <summary><span><i class="bi bi-activity"></i> Attention &amp; exceptions</span><span>{{ attention_count }} store{{ '' if attention_count == 1 else 's' }}</span></summary>
+    <div class="rm-attention-list">
+        {% if attention_items %}
+            {% for item in attention_items %}
+            <a href="{{ url_for(dash_endpoint, view='store', store=item.store, start=start, end=end, sales=sales_arg, **dash_extra) }}">
+                <strong>{{ item.store }}</strong><span>{{ item.reasons|join(' · ') }}</span><i class="bi bi-arrow-right"></i>
+            </a>
+            {% endfor %}
+        {% else %}
+            <div class="rm-all-clear"><i class="bi bi-check-circle"></i> No missing reports, negative closing floats, stale activity, or cash adjustments in this range.</div>
+        {% endif %}
+    </div>
+</details>
+
+{# ── Controls: view switch · month navigation · progressive custom range ──── #}
+<div class="cr-card rm-controls">
+    <div class="rm-control-primary">
+        <div class="seg" aria-label="Dashboard view">
+            <a class="seg-btn {% if view == 'store' %}active{% endif %}" {% if view == 'store' %}aria-current="page"{% endif %} href="{{ url_for(dash_endpoint, view='store', store=sel_store, start=start, end=end, sales=sales_arg, **dash_extra) }}"><i class="bi bi-shop"></i> Per store</a>
+            <a class="seg-btn {% if view == 'regional' %}active{% endif %}" {% if view == 'regional' %}aria-current="page"{% endif %} href="{{ url_for(dash_endpoint, view='regional', start=start, end=end, sales=sales_arg, **dash_extra) }}"><i class="bi bi-diagram-3"></i> Regional</a>
+        </div>
+        <div class="rm-month-nav">
+            <a class="cr-btn cr-btn-ghost" href="{{ url_for(dash_endpoint, view=view, store=sel_store, start=prev_start, end=prev_end, sales=sales_arg, **dash_extra) }}" aria-label="Previous month"><i class="bi bi-chevron-left"></i></a>
+            <strong>{{ range_label }}</strong>
+            <a class="cr-btn cr-btn-ghost" href="{{ url_for(dash_endpoint, view=view, store=sel_store, start=next_start, end=next_end, sales=sales_arg, **dash_extra) }}" aria-label="Next month"><i class="bi bi-chevron-right"></i></a>
+        </div>
+    </div>
+
+    <details class="rm-range-disclosure" {% if not is_full_month %}open{% endif %}>
+        <summary><span><i class="bi bi-calendar-range"></i> Custom range &amp; quick dates</span><i class="bi bi-chevron-down"></i></summary>
+        <div class="rm-range-panel">
+            <form method="get" action="{{ url_for(dash_endpoint) }}" class="rm-range-form">
+                <input type="hidden" name="view" value="{{ view }}">
+                {% if sel_store %}<input type="hidden" name="store" value="{{ sel_store }}">{% endif %}
+                {% if include_sales %}<input type="hidden" name="sales" value="1">{% endif %}
+                {% for k, v in dash_extra.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+                <div><label class="cr-label" for="rmStart">From</label><input id="rmStart" class="cr-input" type="date" name="start" value="{{ start }}"></div>
+                <div><label class="cr-label" for="rmEnd">To</label><input id="rmEnd" class="cr-input" type="date" name="end" value="{{ end }}"></div>
+                <button class="cr-btn" type="submit"><i class="bi bi-funnel"></i> Apply range</button>
+            </form>
+            <div class="rm-presets" aria-label="Quick date ranges">
+                <button type="button" class="cr-btn cr-btn-ghost preset" data-preset="this-month">This month</button>
+                <button type="button" class="cr-btn cr-btn-ghost preset" data-preset="last-month">Last month</button>
+                <button type="button" class="cr-btn cr-btn-ghost preset" data-preset="last-7">Last 7 days</button>
+                <button type="button" class="cr-btn cr-btn-ghost preset" data-preset="this-year">This year</button>
+            </div>
+        </div>
+    </details>
+
+    <div class="rm-sales-state">
+        <div><strong>Cash sales {{ 'shown' if include_sales else 'hidden' }}</strong><span>{% if include_sales %}Income totals are visible.{% else %}Sales amounts are private; opening and closing floats still reflect the full ledger.{% endif %}</span></div>
+        {% if include_sales %}
+        <a class="rm-switch is-on" role="switch" aria-checked="true" href="{{ url_for(dash_endpoint, view=view, store=sel_store, start=start, end=end, **dash_extra) }}"><span></span> Hide sales</a>
+        {% else %}
+        <a class="rm-switch" role="switch" aria-checked="false" href="{{ url_for(dash_endpoint, view=view, store=sel_store, start=start, end=end, sales=1, **dash_extra) }}"><span></span> Show sales</a>
+        {% endif %}
+    </div>
+</div>
+
+{% if not stores %}
+<div class="cr-card" style="padding:48px 28px;text-align:center;color:#8a857d;font-size:14px;">
+    <i class="bi bi-shop" style="font-size:26px;opacity:.5;"></i>
+    <div style="margin-top:8px;">No stores assigned to you yet.</div>
+</div>
+
+{% elif view == 'store' %}
+{# ═══════════════ PER-STORE VIEW (default) ═══════════════ #}
+
+{# Store selector: quick pills for small regions, compact native picker at scale. #}
+{% if stores|length <= 6 %}
+<nav class="store-pills" aria-label="Choose a store">
+    {% for st in stores %}
+    <a class="store-pill {% if st == sel_store %}active{% endif %}" {% if st == sel_store %}aria-current="page"{% endif %} href="{{ url_for(dash_endpoint, view='store', store=st, start=start, end=end, sales=sales_arg, **dash_extra) }}">{{ st }}</a>
+    {% endfor %}
+</nav>
+{% else %}
+<form class="rm-store-picker" id="rmStoreForm" method="get" action="{{ url_for(dash_endpoint) }}">
+    <input type="hidden" name="view" value="store"><input type="hidden" name="start" value="{{ start }}"><input type="hidden" name="end" value="{{ end }}">
+    {% if include_sales %}<input type="hidden" name="sales" value="1">{% endif %}
+    {% for k, v in dash_extra.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+    <label for="rmStoreSelect"><i class="bi bi-shop"></i><span>Viewing store</span></label>
+    <select id="rmStoreSelect" class="cr-input" name="store">
+        {% for st in stores %}<option value="{{ st }}" {% if st == sel_store %}selected{% endif %}>{{ st }}</option>{% endfor %}
+    </select>
+    <noscript><button class="cr-btn" type="submit">View store</button></noscript>
+</form>
+{% endif %}
+
+{# stat tiles #}
+<div class="tile-grid">
+    <div class="tile"><div class="cr-label" style="margin:0;">Opening</div><div class="tile-val">R {{ srow.opening|rands }}</div></div>
+    {% if include_sales %}<div class="tile"><div class="cr-label" style="margin:0;">Sales in</div><div class="tile-val" style="color:#2f5a37;">R {{ srow.total_in|rands }}</div></div>{% endif %}
+    <div class="tile"><div class="cr-label" style="margin:0;">Expenses</div><div class="tile-val" style="color:#823721;">R {{ srow.total_expense|rands }}</div><div class="tile-trend">{% if compare.expense_pct is none %}No previous-period baseline{% else %}<i class="bi bi-arrow-{{ 'up' if compare.expense_pct > 0 else ('down' if compare.expense_pct < 0 else 'right') }}"></i> {{ compare.expense_pct|abs }}% {{ 'higher' if compare.expense_pct > 0 else ('lower' if compare.expense_pct < 0 else 'unchanged') }} vs previous period{% endif %}</div></div>
+    <div class="tile"><div class="cr-label" style="margin:0;">Banked</div><div class="tile-val" style="color:#615b5c;">R {{ srow.total_banked|rands }}</div><div class="tile-trend">Latest banking {{ latest_banking_date }}</div></div>
+    <div class="tile"><div class="cr-label" style="margin:0;">Closing float</div><div class="tile-val" style="font-weight:700;{% if srow.closing < 0 %}color:#823721;{% endif %}">R {{ srow.closing|rands }}</div><div class="tile-trend"><i class="bi bi-arrow-{{ 'up' if compare.closing_delta > 0 else ('down' if compare.closing_delta < 0 else 'right') }}"></i> R {{ compare.closing_delta|abs|rands }} {{ 'higher' if compare.closing_delta > 0 else ('lower' if compare.closing_delta < 0 else 'unchanged') }} vs previous period</div></div>
+</div>
+
+<div class="chart-2col">
+    <div class="cr-card" style="padding:14px 16px;">
+        <h2 class="cr-label">Daily expenses &amp; closing float · {{ sel_store }}</h2>
+        {{ columns(day_chart) }}
+    </div>
+    <div class="cr-card" style="padding:14px 16px;">
+        <h2 class="cr-label">Spend by category · {{ sel_store }}</h2>
+        {{ hbars(cat_chart) }}
+    </div>
+</div>
+
+<div class="cr-card" style="padding:6px 4px;">
+    <h2 class="cr-label" style="padding:10px 12px 4px;">Day-by-day · {{ sel_store }}</h2>
+    <div id="dayWrap" style="padding:0 8px 8px;">
+        {% include 'rm_store_days.html' %}
+    </div>
+</div>
+
+{% else %}
+{# ═══════════════ REGIONAL (CUMULATIVE) VIEW ═══════════════ #}
+
+<div class="cr-card" style="padding:16px;">
+    <p class="cr-label">Cumulative · {{ range_label }} · {{ stores|length }} store{{ 's' if stores|length != 1 }}</p>
+    <div class="tile-grid">
+        <div class="tile"><div class="cr-label" style="margin:0;">Opening</div><div class="tile-val">R {{ summary.opening|rands }}</div></div>
+        {% if include_sales %}<div class="tile"><div class="cr-label" style="margin:0;">Sales in</div><div class="tile-val" style="color:#2f5a37;">R {{ summary.total_in|rands }}</div></div>{% endif %}
+        <div class="tile"><div class="cr-label" style="margin:0;">Expenses</div><div class="tile-val" style="color:#823721;">R {{ summary.total_expense|rands }}</div><div class="tile-trend">{% if compare.expense_pct is none %}No previous-period baseline{% else %}<i class="bi bi-arrow-{{ 'up' if compare.expense_pct > 0 else ('down' if compare.expense_pct < 0 else 'right') }}"></i> {{ compare.expense_pct|abs }}% {{ 'higher' if compare.expense_pct > 0 else ('lower' if compare.expense_pct < 0 else 'unchanged') }} vs previous period{% endif %}</div></div>
+        <div class="tile"><div class="cr-label" style="margin:0;">Banked</div><div class="tile-val" style="color:#615b5c;">R {{ summary.total_banked|rands }}</div><div class="tile-trend">Latest banking {{ latest_banking_date }}</div></div>
+        <div class="tile"><div class="cr-label" style="margin:0;">Closing float</div><div class="tile-val" style="font-weight:700;{% if summary.closing < 0 %}color:#823721;{% endif %}">R {{ summary.closing|rands }}</div><div class="tile-trend"><i class="bi bi-arrow-{{ 'up' if compare.closing_delta > 0 else ('down' if compare.closing_delta < 0 else 'right') }}"></i> R {{ compare.closing_delta|abs|rands }} {{ 'higher' if compare.closing_delta > 0 else ('lower' if compare.closing_delta < 0 else 'unchanged') }} vs previous period</div></div>
+    </div>
+</div>
+
+<div class="chart-2col">
+    <div class="cr-card" style="padding:14px 16px;">
+        <h2 class="cr-label">Expenses by store</h2>
+        {{ hbars(store_chart) }}
+    </div>
+    <div class="cr-card" style="padding:14px 16px;">
+        <div class="rm-chart-card-head">
+            <h2 class="cr-label">Spend by category · region</h2>
+            {% if cat_chart and cat_chart.rows %}<span><i class="bi bi-hand-index-thumb"></i> Select a category</span>{% endif %}
+        </div>
+        {{ hbars(cat_chart) }}
+    </div>
+</div>
+
+{% if trend %}
+<div class="chart-2col">
+    <div class="cr-card" style="padding:14px 16px;">
+        <h2 class="cr-label">Expenses — last 6 months</h2>
+        {{ hbars(trend_expense_chart) }}
+    </div>
+    <div class="cr-card" style="padding:14px 16px;">
+        <h2 class="cr-label">Closing float — last 6 months</h2>
+        {{ hbars(trend_closing_chart) }}
+    </div>
+</div>
+{% endif %}
+
+{% if category_store_breakdowns %}
+<section class="cr-card rm-category-detail" id="rmCategoryDetail" hidden tabindex="-1" aria-labelledby="rmCategoryDetailTitle">
+    <div class="rm-category-detail-head">
+        <div>
+            <p class="cr-label">Store-level comparison</p>
+            <h2 id="rmCategoryDetailTitle">Category breakdown</h2>
+            <p id="rmCategoryDetailMeta">Choose a category above to compare its spend across your stores.</p>
+        </div>
+        <div class="rm-category-detail-actions">
+            <div class="rm-chart-mode" role="group" aria-label="Category comparison chart type">
+                <button type="button" data-chart-view="bars" aria-pressed="true"><i class="bi bi-bar-chart-fill"></i> Bars</button>
+                <button type="button" data-chart-view="share" aria-pressed="false"><i class="bi bi-percent"></i> Share</button>
+            </div>
+            <button class="rm-detail-close" id="rmCategoryDetailClose" type="button" aria-label="Close category comparison"><i class="bi bi-x-lg"></i></button>
+        </div>
+    </div>
+    <div id="rmCategoryBars" class="rm-category-bars" aria-label="Store comparison bar chart"></div>
+    <div id="rmCategoryShare" class="rm-category-share" aria-label="Store share chart" hidden>
+        <div class="rm-share-track" id="rmCategoryShareTrack" aria-hidden="true"></div>
+        <div class="rm-share-legend" id="rmCategoryShareLegend"></div>
+    </div>
+</section>
+<script type="application/json" id="rmCategoryBreakdownData">{{ category_store_breakdowns|tojson }}</script>
+{% endif %}
+
+{# per-store grid (expand inline) #}
+<div class="cr-card" style="padding:6px 4px;">
+    <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:13px;" id="ovTable">
+        <thead>
+            <tr style="color:#a8a39b;font-size:11px;text-transform:uppercase;letter-spacing:.06em;">
+                <th style="text-align:left;padding:8px 10px;">Store</th>
+                <th style="text-align:right;padding:8px 10px;">Opening</th>
+                {% if include_sales %}<th style="text-align:right;padding:8px 10px;">In</th>{% endif %}
+                <th style="text-align:right;padding:8px 10px;">Expenses</th>
+                <th style="text-align:right;padding:8px 10px;">Banked</th>
+                <th style="text-align:right;padding:8px 10px;">Adjust</th>
+                <th style="text-align:right;padding:8px 10px;">Closing</th>
+                <th style="text-align:right;padding:8px 10px;"># entries</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% set span = 8 if include_sales else 7 %}
+            {% for r in rows %}
+            <tr class="store-row" data-loaded="0"
+                data-url="{{ url_for(days_endpoint, store=r.store, start=start, end=end, sales=sales_arg, **dash_extra) }}"
+                style="border-top:0.5px solid rgba(28,28,28,0.07);cursor:pointer;">
+                <td style="padding:10px;font-weight:500;white-space:nowrap;"><button type="button" class="rm-row-toggle" aria-expanded="false" aria-label="Show day-by-day details for {{ r.store }}"><i class="bi bi-chevron-right chev" aria-hidden="true"></i>{{ r.store }}</button></td>
+                <td style="padding:10px;text-align:right;white-space:nowrap;color:#615b5c;">R {{ r.opening|rands }}</td>
+                {% if include_sales %}<td style="padding:10px;text-align:right;white-space:nowrap;color:#2f5a37;">R {{ r.total_in|rands }}</td>{% endif %}
+                <td style="padding:10px;text-align:right;white-space:nowrap;color:#823721;">R {{ r.total_expense|rands }}</td>
+                <td style="padding:10px;text-align:right;white-space:nowrap;color:#615b5c;">R {{ r.total_banked|rands }}</td>
+                <td style="padding:10px;text-align:right;white-space:nowrap;color:#823721;">{% if r.total_adjust %}R {{ r.total_adjust|rands }}{% else %}<span style="color:#c9c4bc;">—</span>{% endif %}</td>
+                <td style="padding:10px;text-align:right;white-space:nowrap;font-weight:700;{% if r.closing < 0 %}color:#823721;{% endif %}">R {{ r.closing|rands }}</td>
+                <td style="padding:10px;text-align:right;white-space:nowrap;color:#8a857d;">{{ r.entry_count }}</td>
+            </tr>
+            <tr class="expand-row" hidden>
+                <td colspan="{{ span }}" style="padding:0 10px 10px;background:#fdfcfb;">
+                    <div class="expand-body" style="padding:6px 2px;"><div style="padding:14px;color:#8a857d;font-size:13px;">Loading…</div></div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    <div style="font-size:11px;color:#a8a39b;padding:10px 12px 4px;"><i class="bi bi-info-circle"></i> Click a store to expand its day-by-day breakdown. Read-only.</div>
+</div>
+{% endif %}
+
+<style>
+    .rm-page-head { display:flex;justify-content:space-between;align-items:flex-end;gap:24px;margin:4px 0 18px; }
+    .rm-page-head h1 { margin:4px 0;font-size:clamp(26px,3vw,38px);letter-spacing:-.035em; }
+    .rm-page-head p { margin:0;color:#746e69;font-size:14px; }
+    .rm-kicker { color:#823721;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase; }
+    .rm-page-owner { display:flex;align-items:center;gap:8px;color:#615b5c;font-size:13px;white-space:nowrap; }
+    .rm-page-owner i { display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:#eee9e5;color:#823721; }
+    .rm-region-bar { display:flex;align-items:center;gap:10px;margin:0 0 14px;padding:10px 14px;
+        border:1px solid rgba(28,28,28,.09);border-radius:14px;background:#fff; }
+    .rm-region-bar label { display:inline-flex;align-items:center;gap:7px;color:#615b5c;font-size:12px;font-weight:650;white-space:nowrap; }
+    .rm-region-bar select { max-width:340px;padding:8px 10px; }
+    .rm-ops-grid { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px; }
+    .rm-ops-card { min-height:72px;display:flex;align-items:center;gap:12px;padding:13px 14px;border:1px solid rgba(28,28,28,.09);border-radius:14px;background:#fff;color:#403c3a;text-decoration:none; }
+    .rm-ops-card>i { display:grid;place-items:center;flex:0 0 34px;height:34px;border-radius:10px;background:#f2efec;color:#746e69; }
+    .rm-ops-card div { min-width:0;display:flex;flex-direction:column;gap:2px; }
+    .rm-ops-card strong { font-size:15px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+    .rm-ops-card span { color:#8a857d;font-size:11px; }
+    .rm-ops-card.is-good>i { background:#e4f1e6;color:#2f6b3c; }
+    .rm-ops-card.is-alert { border-color:rgba(130,55,33,.22);background:#fffaf7; }
+    .rm-ops-card.is-alert>i { background:#f4e4de;color:#823721; }
+    .rm-attention-panel { margin-bottom:14px;border:1px solid rgba(28,28,28,.1);border-radius:14px;background:#fff;overflow:hidden; }
+    .rm-attention-panel summary { display:flex;justify-content:space-between;gap:16px;align-items:center;min-height:48px;padding:10px 15px;cursor:pointer;font-size:13px;font-weight:650;list-style:none; }
+    .rm-attention-panel summary::-webkit-details-marker { display:none; }
+    .rm-attention-panel summary span:first-child { display:flex;align-items:center;gap:8px; }
+    .rm-attention-panel summary span:last-child { color:#823721;font-size:11px; }
+    .rm-attention-list { border-top:1px solid rgba(28,28,28,.07); }
+    .rm-attention-list a { display:grid;grid-template-columns:minmax(120px,.6fr) 1fr auto;gap:12px;align-items:center;padding:11px 15px;color:#403c3a;text-decoration:none;border-top:1px solid rgba(28,28,28,.05); }
+    .rm-attention-list a:first-child { border-top:0; }
+    .rm-attention-list a:hover { background:#fbf8f6; }
+    .rm-attention-list a span { color:#746e69;font-size:12px; }
+    .rm-all-clear { padding:14px 15px;color:#2f6b3c;font-size:12px; }
+    .rm-controls { padding:14px;margin-bottom:16px; }
+    .rm-control-primary { display:flex;align-items:center;justify-content:space-between;gap:16px; }
+    .seg { display:inline-flex;border:0.5px solid rgba(28,28,28,0.18);border-radius:10px;overflow:hidden;background:#fff; }
+    .seg-btn { min-height:40px;display:inline-flex;align-items:center;gap:6px;padding:8px 16px;font-size:13px;font-weight:500;color:#615b5c;text-decoration:none;border-right:0.5px solid rgba(28,28,28,0.12); }
+    .seg-btn:last-child { border-right:none; }
+    .seg-btn.active { background:#1c1c1c;color:#fff; }
+    .rm-month-nav { display:grid;grid-template-columns:40px minmax(140px,auto) 40px;align-items:center;text-align:center;gap:8px; }
+    .rm-month-nav .cr-btn { width:40px;height:40px;padding:0;justify-content:center; }
+    .rm-month-nav strong { font-size:13px; }
+    .rm-range-disclosure { margin-top:12px;border-top:1px solid rgba(28,28,28,.07); }
+    .rm-range-disclosure summary { display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:42px;padding:10px 2px 0;cursor:pointer;list-style:none;color:#615b5c;font-size:12px;font-weight:600; }
+    .rm-range-disclosure summary::-webkit-details-marker { display:none; }
+    .rm-range-disclosure summary span { display:flex;align-items:center;gap:7px; }
+    .rm-range-disclosure[open] summary>i { transform:rotate(180deg); }
+    .rm-range-panel { display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end;padding:12px 0 2px; }
+    .rm-range-form { display:grid;grid-template-columns:minmax(150px,1fr) minmax(150px,1fr) auto;gap:10px;align-items:end; }
+    .rm-range-form .cr-label { display:block;margin:0 0 5px; }
+    .rm-presets { display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end; }
+    .rm-presets .cr-btn { padding-inline:10px; }
+    .rm-sales-state { display:flex;justify-content:space-between;align-items:center;gap:18px;margin-top:12px;padding-top:12px;border-top:1px solid rgba(28,28,28,.07); }
+    .rm-sales-state>div { display:flex;flex-direction:column;gap:2px; }
+    .rm-sales-state strong { font-size:12px; }
+    .rm-sales-state span { color:#8a857d;font-size:11px; }
+    .rm-switch { min-height:40px;display:inline-flex;align-items:center;gap:8px;color:#615b5c;text-decoration:none;font-size:12px;font-weight:650;white-space:nowrap; }
+    .rm-switch>span { width:38px;height:22px;border-radius:999px;background:#d7d3ce;padding:3px;transition:background .16s ease; }
+    .rm-switch>span::after { content:"";display:block;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.18);transition:transform .16s ease; }
+    .rm-switch.is-on>span { background:#2f6b3c; }
+    .rm-switch.is-on>span::after { transform:translateX(16px); }
+    .store-pills { display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px; }
+    .store-pill { min-height:40px;display:inline-flex;align-items:center;padding:8px 14px;border-radius:999px;border:0.5px solid rgba(28,28,28,0.16);background:#fbfaf9;color:#403c3a;font-size:13px;text-decoration:none;white-space:nowrap; }
+    .store-pill:hover { border-color:rgba(28,28,28,0.4); }
+    .store-pill.active { background:#1c1c1c;color:#fff;border-color:#1c1c1c;font-weight:500; }
+    .rm-store-picker { display:grid;grid-template-columns:auto minmax(240px,460px);gap:12px;align-items:center;margin-bottom:16px;padding:12px 14px;border:1px solid rgba(28,28,28,.09);border-radius:14px;background:#fff; }
+    .rm-store-picker label { display:flex;align-items:center;gap:8px;color:#615b5c;font-size:12px;font-weight:650; }
+    .tile-grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px; }
+    .tile { background:#fbfaf9;border:0.5px solid rgba(28,28,28,0.10);border-radius:14px;padding:14px 16px;min-width:0; }
+    .tile-val { font-size:18px;font-weight:600;margin-top:5px;white-space:nowrap; }
+    .tile-trend { margin-top:7px;color:#8a857d;font-size:10.5px;line-height:1.35; }
+    .chart-2col { display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;align-items:start; }
+    .chart-2col h2 { margin:0 0 8px;font-size:11px; }
+    .rm-chart-card-head { display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px; }
+    .rm-chart-card-head h2 { margin:0; }
+    .rm-chart-card-head>span { display:inline-flex;align-items:center;gap:5px;color:#8a857d;font-size:10.5px;white-space:nowrap; }
+    .rm-chart-summary { margin:8px 4px 0;color:#8a857d;font-size:11px;line-height:1.4; }
+    .rm-chart-bar.is-link { transition:opacity .15s ease; }
+    a:hover .rm-chart-bar.is-link { opacity:.72; }
+    .rm-chart-drill { cursor:pointer; }
+    .rm-chart-hit { fill:transparent;stroke:transparent;stroke-width:2;transition:fill .16s ease,stroke .16s ease; }
+    .rm-chart-drill:hover .rm-chart-hit,.rm-chart-drill.is-selected .rm-chart-hit { fill:rgba(130,55,33,.055); }
+    .rm-chart-drill:hover .rm-chart-bar,.rm-chart-drill.is-selected .rm-chart-bar { opacity:.78; }
+    .rm-chart-drill:focus-visible .rm-chart-hit { stroke:#3a5a8a;stroke-dasharray:4 3; }
+    .rm-chart-drill.is-selected .rm-chart-chevron { fill:#823721;font-weight:700; }
+    .rm-category-detail { padding:18px 20px;margin-top:0; }
+    .rm-category-detail-head { display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:18px; }
+    .rm-category-detail-head .cr-label { margin-bottom:4px; }
+    .rm-category-detail-head h2 { margin:0;font-size:20px;letter-spacing:-.02em; }
+    .rm-category-detail-head p:last-child { margin:5px 0 0;color:#8a857d;font-size:12px; }
+    .rm-category-detail-actions { display:flex;align-items:center;gap:8px; }
+    .rm-chart-mode { display:inline-flex;padding:3px;border:1px solid rgba(28,28,28,.11);border-radius:10px;background:#f3efec; }
+    .rm-chart-mode button { min-height:38px;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:7px 12px;border:0;border-radius:7px;background:transparent;color:#746e69;font-size:11px;font-weight:700;cursor:pointer; }
+    .rm-chart-mode button[aria-pressed="true"] { background:#fff;color:#1c1c1c;box-shadow:0 1px 4px rgba(28,28,28,.08); }
+    .rm-detail-close { width:44px;height:44px;display:grid;place-items:center;border:1px solid rgba(28,28,28,.11);border-radius:10px;background:#fff;color:#746e69;cursor:pointer; }
+    .rm-category-bars { display:flex;flex-direction:column;gap:12px; }
+    .rm-category-bars[hidden],.rm-category-share[hidden] { display:none !important; }
+    .rm-category-bar-row { display:grid;grid-template-columns:minmax(110px,150px) minmax(120px,1fr) minmax(90px,auto);gap:12px;align-items:center; }
+    .rm-category-bar-store { min-width:0;color:#403c3a;font-size:12px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+    .rm-category-bar-track { height:14px;border-radius:999px;background:#eee9e5;overflow:hidden; }
+    .rm-category-bar-fill { height:100%;min-width:0;border-radius:inherit;background:#823721;transition:width .2s ease; }
+    .rm-category-bar-value { color:#403c3a;font-size:12px;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap; }
+    .rm-category-bar-value small { display:block;color:#8a857d;font-size:10px; }
+    .rm-category-share { display:flex;flex-direction:column;gap:16px; }
+    .rm-share-track { min-height:34px;display:flex;overflow:hidden;border-radius:10px;background:#eee9e5; }
+    .rm-share-segment { min-width:2px;transition:flex-grow .2s ease; }
+    .rm-share-legend { display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px 14px; }
+    .rm-share-item { display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:8px;align-items:center;padding:8px 9px;border:1px solid rgba(28,28,28,.075);border-radius:9px;background:#fdfbf9; }
+    .rm-share-swatch { width:10px;height:10px;border-radius:3px; }
+    .rm-share-copy { min-width:0; }
+    .rm-share-copy strong { display:block;color:#403c3a;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+    .rm-share-copy small { color:#8a857d;font-size:10px; }
+    .rm-share-value { color:#403c3a;font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap; }
+    .rm-row-toggle { display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:0;border:0;background:transparent;color:inherit;font:inherit;font-weight:inherit;cursor:pointer;text-align:left; }
+    .rm-row-toggle i { color:#a8a39b;font-size:10px;transition:transform .15s ease; }
+    .rm-days-summary { display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:8px 6px 10px;color:#615b5c;font-size:12px; }
+    .rm-days-summary em { font-style:normal; }
+    .rm-days-summary span { color:#a8a39b; }
+    .rm-days-hint { font-size:11px; }
+    .rm-day-table-wrap { overflow-x:auto;border-radius:10px;background:#fff; }
+    .rm-day-table,.rm-entry-table { width:100%;border-collapse:collapse;font-size:12.5px; }
+    .rm-day-table thead,.rm-entry-table thead { color:#a8a39b;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;background:#faf8f6; }
+    .rm-day-table th,.rm-day-table td,.rm-entry-table th,.rm-entry-table td { padding:9px 10px;text-align:right;white-space:nowrap; }
+    .rm-day-table th:first-child,.rm-day-table td:first-child,.rm-entry-table th:first-child,.rm-entry-table td:first-child { text-align:left; }
+    .rm-day-table tbody>tr.day-row { border-top:.5px solid rgba(28,28,28,.06);cursor:pointer; }
+    .rm-day-table tbody>tr.day-row:hover { background:#fdfbf9; }
+    .rm-day-table .day-detail>td { padding:0 10px 10px;background:#fbfaf9; }
+    .rm-entry-table { font-size:12px; }
+    .rm-entry-table tbody tr { border-top:.5px solid rgba(28,28,28,.05); }
+    .rm-entry-table td:first-child { white-space:normal; }
+    .rm-entry-table strong { display:block;font-weight:550; }
+    .rm-entry-table small { display:block;margin-top:2px;color:#8a857d;font-size:11px; }
+    .is-income { color:#2f5a37; }
+    .is-expense,.is-negative { color:#823721; }
+    .is-strong { font-weight:650; }
+    .rm-empty { color:#c9c4bc; }
+    .rm-empty-state { padding:22px;text-align:center;color:#8a857d;font-size:13px; }
+    @media (max-width:900px){
+        .rm-ops-grid { grid-template-columns:repeat(2,1fr); }
+        .chart-2col { grid-template-columns:1fr; }
+        .rm-range-panel { grid-template-columns:1fr; }
+        .rm-presets { justify-content:flex-start; }
+    }
+    @media (max-width:700px){
+        .rm-page-head { align-items:flex-start; }
+        .rm-page-owner { display:none; }
+        .rm-control-primary { align-items:stretch;flex-direction:column; }
+        .seg { width:100%; }
+        .seg-btn { flex:1;justify-content:center;min-height:44px; }
+        .rm-month-nav { width:100%;grid-template-columns:44px 1fr 44px; }
+        .rm-month-nav .cr-btn { width:44px;height:44px; }
+        .rm-range-form { grid-template-columns:1fr 1fr; }
+        .rm-range-form button { grid-column:1/-1;min-height:44px; }
+        .rm-sales-state { align-items:flex-start; }
+        .rm-switch { min-height:44px; }
+        .store-pills { flex-wrap:nowrap;overflow-x:auto;padding-bottom:3px; }
+        .store-pill { min-height:44px; }
+        .rm-store-picker { grid-template-columns:1fr; }
+        .rm-store-picker select { min-height:44px; }
+        .tile-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+        .tile { padding:12px; }
+        .tile-val { font-size:16px; }
+        .rm-chart-card-head { align-items:flex-start; }
+        .rm-category-detail { padding:15px; }
+        .rm-category-detail-head { flex-direction:column; }
+        .rm-category-detail-actions { width:100%;justify-content:space-between; }
+        .rm-chart-mode { flex:1; }
+        .rm-chart-mode button { flex:1;min-height:44px; }
+        .rm-category-bar-row { grid-template-columns:minmax(90px,120px) minmax(90px,1fr);gap:8px; }
+        .rm-category-bar-value { grid-column:2; }
+        .rm-day-table-wrap { overflow:visible;background:transparent; }
+        .rm-day-table,.rm-day-table tbody { display:block;width:100%; }
+        .rm-day-table>thead { display:none; }
+        .rm-day-table tbody>tr.day-row { display:grid;grid-template-columns:1fr 1fr;gap:0;margin:0 0 10px;border:1px solid rgba(28,28,28,.1);border-radius:12px;background:#fff;overflow:hidden; }
+        .rm-day-table tbody>tr.day-row>td { display:flex;justify-content:space-between;gap:10px;padding:8px 12px;text-align:right;white-space:normal;border-top:.5px solid rgba(28,28,28,.055); }
+        .rm-day-table tbody>tr.day-row>td::before { content:attr(data-label);color:#8a857d;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em; }
+        .rm-day-table tbody>tr.day-row>td:first-child { grid-column:1/-1;padding:5px 12px;border-top:0;background:#faf8f6; }
+        .rm-day-table tbody>tr.day-row>td:first-child::before { display:none; }
+        .rm-day-table .rm-row-toggle { width:100%;min-height:40px;font-weight:650; }
+        .rm-day-table tbody>tr.day-detail { display:block;margin:-10px 0 10px; }
+        .rm-day-table tbody>tr.day-detail[hidden] { display:none; }
+        .rm-day-table tbody>tr.day-detail>td { display:block;padding:8px;border:1px solid rgba(28,28,28,.1);border-top:0;border-radius:0 0 12px 12px; }
+        .rm-entry-table,.rm-entry-table tbody,.rm-entry-table tr,.rm-entry-table td { display:block;width:100%; }
+        .rm-entry-table thead { display:none; }
+        .rm-entry-table tr { padding:7px 4px; }
+        .rm-entry-table td { display:flex;justify-content:space-between;gap:12px;padding:4px;text-align:right;white-space:normal; }
+        .rm-entry-table td::before { content:attr(data-label);color:#8a857d;font-size:10px;text-transform:uppercase; }
+        .rm-entry-table td:first-child { display:block;text-align:left; }
+        .rm-entry-table td:first-child::before { display:none; }
+    }
+    @media (max-width:480px){
+        .rm-ops-grid { grid-template-columns:1fr 1fr;gap:8px; }
+        .rm-ops-card { min-height:66px;padding:10px; }
+        .rm-ops-card>i { display:none; }
+        .rm-attention-list a { grid-template-columns:1fr auto; }
+        .rm-attention-list a span { grid-column:1/-1;grid-row:2; }
+        .rm-range-form { grid-template-columns:1fr; }
+        .rm-range-form button { grid-column:auto; }
+        .rm-sales-state { flex-direction:column;gap:6px; }
+        .tile-grid { grid-template-columns:1fr 1fr;gap:8px; }
+    }
+    @media (prefers-reduced-motion:reduce){ .rm-switch>span,.rm-switch>span::after,.rm-row-toggle i,.rm-chart-bar,.rm-chart-hit,.rm-category-bar-fill,.rm-share-segment { transition:none!important; } }
+</style>
+
+<script>
+(function () {
+    var includeSales = {{ 'true' if include_sales else 'false' }};
+
+    // Regional category drill-down: a selectable chart row opens an inline,
+    // store-scoped comparison. The second view shows each store's share of the
+    // selected category without relying on colour alone.
+    var categoryDataNode = document.getElementById('rmCategoryBreakdownData');
+    var categoryDetail = document.getElementById('rmCategoryDetail');
+    if (categoryDataNode && categoryDetail) {
+        var categoryData = {};
+        try { categoryData = JSON.parse(categoryDataNode.textContent || '{}'); } catch (error) { categoryData = {}; }
+        var categoryTitle = document.getElementById('rmCategoryDetailTitle');
+        var categoryMeta = document.getElementById('rmCategoryDetailMeta');
+        var categoryBars = document.getElementById('rmCategoryBars');
+        var categoryShare = document.getElementById('rmCategoryShare');
+        var shareTrack = document.getElementById('rmCategoryShareTrack');
+        var shareLegend = document.getElementById('rmCategoryShareLegend');
+        var closeCategory = document.getElementById('rmCategoryDetailClose');
+        var chartModeButtons = Array.from(document.querySelectorAll('[data-chart-view]'));
+        var categoryTriggers = Array.from(document.querySelectorAll('.rm-chart-drill'));
+        var storeColors = ['#823721', '#2f5a37', '#4a5d6b', '#8a6d3b', '#7a4a52', '#3b5d52', '#9c7a2c', '#54607a'];
+        var activeCategoryTrigger = null;
+        var activeChartView = 'bars';
+
+        function money(value) {
+            return 'R ' + Number(value || 0).toLocaleString('en-ZA', {
+                minimumFractionDigits: 2, maximumFractionDigits: 2
+            });
+        }
+
+        function setChartView(view) {
+            activeChartView = view === 'share' ? 'share' : 'bars';
+            categoryBars.hidden = activeChartView !== 'bars';
+            categoryShare.hidden = activeChartView !== 'share';
+            chartModeButtons.forEach(function (button) {
+                button.setAttribute('aria-pressed', String(button.getAttribute('data-chart-view') === activeChartView));
+            });
+        }
+
+        function renderCategory(key, trigger) {
+            var category = categoryData[key];
+            if (!category) return;
+            var stores = category.stores || [];
+            var total = Number(category.total || 0);
+            var maximum = Math.max.apply(null, stores.map(function (row) { return Number(row.total || 0); }).concat([1]));
+            var activeStores = stores.filter(function (row) { return Number(row.total || 0) > 0; }).length;
+
+            categoryTitle.textContent = category.name;
+            categoryMeta.textContent = money(total) + ' regional total · ' + activeStores + ' of ' + stores.length + ' stores recorded spend';
+            categoryBars.textContent = '';
+            shareTrack.textContent = '';
+            shareLegend.textContent = '';
+
+            stores.forEach(function (store, index) {
+                var amount = Number(store.total || 0);
+                var percent = total > 0 ? (amount / total) * 100 : 0;
+
+                var barRow = document.createElement('div');
+                barRow.className = 'rm-category-bar-row';
+                var storeName = document.createElement('div');
+                storeName.className = 'rm-category-bar-store';
+                storeName.textContent = store.store;
+                storeName.title = store.store;
+                var track = document.createElement('div');
+                track.className = 'rm-category-bar-track';
+                track.setAttribute('aria-hidden', 'true');
+                var fill = document.createElement('div');
+                fill.className = 'rm-category-bar-fill';
+                fill.style.width = ((amount / maximum) * 100).toFixed(2) + '%';
+                track.appendChild(fill);
+                var value = document.createElement('div');
+                value.className = 'rm-category-bar-value';
+                value.textContent = money(amount);
+                var pct = document.createElement('small');
+                pct.textContent = percent.toFixed(1) + '% of category';
+                value.appendChild(pct);
+                barRow.append(storeName, track, value);
+                categoryBars.appendChild(barRow);
+
+                if (amount > 0) {
+                    var segment = document.createElement('span');
+                    segment.className = 'rm-share-segment';
+                    segment.style.flexGrow = String(amount);
+                    segment.style.backgroundColor = storeColors[index % storeColors.length];
+                    shareTrack.appendChild(segment);
+                }
+
+                var legendItem = document.createElement('div');
+                legendItem.className = 'rm-share-item';
+                var swatch = document.createElement('span');
+                swatch.className = 'rm-share-swatch';
+                swatch.style.backgroundColor = storeColors[index % storeColors.length];
+                var copy = document.createElement('div');
+                copy.className = 'rm-share-copy';
+                var copyName = document.createElement('strong');
+                copyName.textContent = store.store;
+                var copyPercent = document.createElement('small');
+                copyPercent.textContent = percent.toFixed(1) + '% of category';
+                copy.append(copyName, copyPercent);
+                var legendValue = document.createElement('span');
+                legendValue.className = 'rm-share-value';
+                legendValue.textContent = money(amount);
+                legendItem.append(swatch, copy, legendValue);
+                shareLegend.appendChild(legendItem);
+            });
+
+            categoryTriggers.forEach(function (item) {
+                var selected = item === trigger;
+                item.classList.toggle('is-selected', selected);
+                item.setAttribute('aria-expanded', String(selected));
+            });
+            activeCategoryTrigger = trigger;
+            categoryDetail.hidden = false;
+            setChartView(activeChartView);
+            window.requestAnimationFrame(function () {
+                var rect = categoryDetail.getBoundingClientRect();
+                if (rect.bottom > window.innerHeight && rect.top > 0) {
+                    categoryDetail.scrollIntoView({
+                        block: 'nearest',
+                        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+                    });
+                }
+            });
+        }
+
+        categoryTriggers.forEach(function (trigger) {
+            function activate() { renderCategory(trigger.getAttribute('data-category-key'), trigger); }
+            trigger.addEventListener('click', activate);
+            trigger.addEventListener('keydown', function (event) {
+                if (event.key !== 'Enter' && event.key !== ' ') return;
+                event.preventDefault();
+                activate();
+            });
+        });
+        chartModeButtons.forEach(function (button) {
+            button.addEventListener('click', function () { setChartView(button.getAttribute('data-chart-view')); });
+        });
+        closeCategory.addEventListener('click', function () {
+            categoryDetail.hidden = true;
+            categoryTriggers.forEach(function (item) {
+                item.classList.remove('is-selected');
+                item.setAttribute('aria-expanded', 'false');
+            });
+            if (activeCategoryTrigger) activeCategoryTrigger.focus();
+            activeCategoryTrigger = null;
+        });
+    }
+
+    // day-row toggle (works for both the per-store #dayWrap and regional #ovTable)
+    function wireDayToggle(root) {
+        if (!root) return;
+        root.addEventListener('click', function (e) {
+            var dayRow = e.target.closest('.day-row');
+            if (!dayRow || !root.contains(dayRow)) return;
+            var detail = dayRow.nextElementSibling;
+            if (detail && detail.classList.contains('day-detail')) {
+                detail.hidden = !detail.hidden;
+                var dc = dayRow.querySelector('.daychev');
+                var toggle = dayRow.querySelector('.rm-row-toggle');
+                if (dc) dc.style.transform = detail.hidden ? '' : 'rotate(90deg)';
+                if (toggle) {
+                    toggle.setAttribute('aria-expanded', String(!detail.hidden));
+                    var baseLabel = toggle.getAttribute('aria-label').replace(/^(Show|Hide)/, '');
+                    toggle.setAttribute('aria-label', (detail.hidden ? 'Show' : 'Hide') + baseLabel);
+                }
+            }
+        });
+    }
+    wireDayToggle(document.getElementById('dayWrap'));
+
+    // regional: store-row expand (lazy-load the read-only day fragment)
+    var table = document.getElementById('ovTable');
+    if (table) {
+        wireDayToggle(table);
+        table.addEventListener('click', function (e) {
+            if (e.target.closest('.day-row')) return;
+            var row = e.target.closest('.store-row');
+            if (!row) return;
+            var exp = row.nextElementSibling;
+            if (!exp || !exp.classList.contains('expand-row')) return;
+            var chev = row.querySelector('.chev');
+            var toggle = row.querySelector('.rm-row-toggle');
+            exp.hidden = !exp.hidden;
+            if (chev) chev.style.transform = exp.hidden ? '' : 'rotate(90deg)';
+            if (toggle) {
+                toggle.setAttribute('aria-expanded', String(!exp.hidden));
+                var storeLabel = toggle.getAttribute('aria-label').replace(/^(Show|Hide)/, '');
+                toggle.setAttribute('aria-label', (exp.hidden ? 'Show' : 'Hide') + storeLabel);
+            }
+            if (!exp.hidden && row.getAttribute('data-loaded') === '0') {
+                row.setAttribute('data-loaded', '1');
+                var body = exp.querySelector('.expand-body');
+                fetch(row.getAttribute('data-url'), { credentials: 'same-origin' })
+                    .then(function (res) { if (!res.ok) throw new Error(res.status); return res.text(); })
+                    .then(function (html) { body.innerHTML = html; })
+                    .catch(function () {
+                        body.innerHTML = '<div style="padding:14px;color:#823721;font-size:13px;">Could not load breakdown.</div>';
+                        row.setAttribute('data-loaded', '0');
+                    });
+            }
+        });
+    }
+
+    // quick-range presets — preserve view, store and the sales toggle
+    function iso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+    var base = '{{ url_for(dash_endpoint) }}';
+    var view = '{{ view }}';
+    var selStore = {{ (sel_store or '')|tojson }};
+    var dashExtra = {{ dash_extra|tojson }};
+    document.querySelectorAll('.preset').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var now = new Date(), s, en = now, p = btn.getAttribute('data-preset');
+            if (p === 'this-month') { s = new Date(now.getFullYear(), now.getMonth(), 1); en = new Date(now.getFullYear(), now.getMonth() + 1, 0); }
+            else if (p === 'last-month') { s = new Date(now.getFullYear(), now.getMonth() - 1, 1); en = new Date(now.getFullYear(), now.getMonth(), 0); }
+            else if (p === 'last-7') { s = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6); en = now; }
+            else if (p === 'this-year') { s = new Date(now.getFullYear(), 0, 1); en = new Date(now.getFullYear(), 11, 31); }
+            var url = base + '?view=' + encodeURIComponent(view) + '&start=' + iso(s) + '&end=' + iso(en);
+            if (view === 'store' && selStore) url += '&store=' + encodeURIComponent(selStore);
+            if (includeSales) url += '&sales=1';
+            Object.keys(dashExtra).forEach(function (k) { url += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(dashExtra[k]); });
+            window.location = url;
+        });
+    });
+
+    var storeSelect = document.getElementById('rmStoreSelect');
+    if (storeSelect) {
+        storeSelect.addEventListener('change', function () {
+            document.getElementById('rmStoreForm').submit();
+        });
+    }
+    var regionSelect = document.getElementById('rmRegionSelect');
+    if (regionSelect) {
+        regionSelect.addEventListener('change', function () {
+            document.getElementById('rmRegionForm').submit();
+        });
+    }
+})();
+</script>
+
+{% endblock %}

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Staff login — NORTHWIND</title>
+    <link href="{{ url_for('static', filename='vendor/inter.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='vendor/bootstrap.purged.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='vendor/bootstrap-icons.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='staff-login.css') }}" rel="stylesheet">
+</head>
+<body>
+    <form class="login-card" method="post" action="{{ url_for('staff_login') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for cat, msg in messages %}
+            <div class="flash {{ cat }}">{{ msg }}</div>
+            {% endfor %}
+        {% endwith %}
+
+        {% if step == 'email' %}
+        {# ── Step 1: Store email ── #}
+        <div class="step-dots">
+            <div class="step-dot active"></div>
+            <div class="step-dot"></div>
+        </div>
+        <div class="icon icon-email"><i class="bi bi-envelope-fill"></i></div>
+        <h1>Staff login</h1>
+        <p class="sub">Enter your store's email address to continue.</p>
+
+        <label for="staffEmail">Store email</label>
+        <input id="staffEmail" type="email" name="email" placeholder="e.g. storename@northwind-apparel.example"
+               autocomplete="username" autofocus required
+               value="{{ email or '' }}">
+        <input type="hidden" name="action" value="check_email">
+        <button class="login-btn green" type="submit">Continue <i class="bi bi-arrow-right"></i></button>
+
+        {% elif step == 'code' %}
+        {# ── Step 2: shared store password ── #}
+        <div class="step-dots">
+            <div class="step-dot done"></div>
+            <div class="step-dot active"></div>
+        </div>
+        <div class="icon icon-code"><i class="bi bi-key-fill"></i></div>
+        <h1>Store password</h1>
+        <p class="sub">Type your store's password to view staff deductions.</p>
+
+        <div class="store-tag"><i class="bi bi-shop"></i> {{ store_name }}</div>
+
+        <input type="hidden" name="email" value="{{ email }}">
+        <input type="hidden" name="action" value="login">
+        <label for="staffPassword">Password</label>
+        <input id="staffPassword" type="password" name="password" inputmode="numeric"
+               placeholder="Enter the store password" autofocus required autocomplete="current-password">
+        <button class="login-btn" type="submit"><i class="bi bi-box-arrow-in-right"></i> Log in</button>
+        {% endif %}
+
+        <a class="back" href="{{ url_for('landing') }}"><i class="bi bi-chevron-left"></i> Back to home</a>
+    </form>
+</body>
+</html>

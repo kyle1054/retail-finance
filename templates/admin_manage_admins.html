@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+{% block title %}People & Access — NORTHWIND{% endblock %}
+{% block page_title %}People & Access{% endblock %}
+
+{% from '_pager.html' import pager as list_pager %}
+{% block content %}
+<link href="{{ url_for('static', filename='admin-manage-admins.css') }}" rel="stylesheet">
+
+{% if new_credential %}
+<div class="cred-panel">
+    <div class="lbl">New password — copy it now, it won't be shown again</div>
+    <div style="margin-top:8px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+        <span class="muted">{{ new_credential.username }}</span>
+        <code id="newcred">{{ new_credential.password }}</code>
+        <button class="btn-sm" type="button" data-copy-target="newcred">
+            <i class="bi bi-clipboard"></i> Copy</button>
+    </div>
+</div>
+{% endif %}
+
+<div class="admins-card">
+    <h2><i class="bi bi-shield-lock-fill"></i> Admin Accounts
+        <span class="sub">{{ admins|length }} account{{ 's' if admins|length != 1 }}</span></h2>
+
+    {% for admin in admins %}
+    {% set role = admin.role or 'super' %}
+    {% set is_me = admin.id == me_id %}
+    <div class="admin-row">
+        <div class="admin-avatar">{{ admin.display_name[0]|upper }}</div>
+        <div class="admin-info">
+            <div class="admin-name">
+                {{ admin.display_name }}
+                {% if is_me %}<span class="tag you-tag">You</span>{% endif %}
+                {% if not admin.is_active %}<span class="tag tag-off">Disabled</span>{% endif %}
+            </div>
+            <div class="admin-user">{{ admin.username }}</div>
+        </div>
+        <div class="admin-actions">
+            <form method="post" action="{{ url_for('admin_edit_admin_role', user_id=admin.id) }}">
+                <select name="role" class="row-select" aria-label="Access level">
+                    <option value="super"  {{ 'selected' if role=='super' }}>Full access</option>
+                    <option value="retail" {{ 'selected' if role=='retail' }}>Retail only</option>
+                    <option value="hq"     {{ 'selected' if role=='hq' }}>HQ only</option>
+                </select>
+                <button class="btn-sm" type="submit">Save role</button>
+            </form>
+            <form method="post" action="{{ url_for('admin_reset_admin_password', user_id=admin.id) }}"
+                  data-confirm="Reset password for {{ admin.display_name }}? A new one will be generated.">
+                <button class="btn-sm" type="submit"><i class="bi bi-key"></i> Reset password</button>
+            </form>
+            {% if not is_me %}
+            <form method="post" action="{{ url_for('admin_set_admin_active', user_id=admin.id) }}">
+                <input type="hidden" name="active" value="{{ '0' if admin.is_active else '1' }}">
+                <button class="btn-sm" type="submit">
+                    {{ 'Disable' if admin.is_active else 'Enable' }}</button>
+            </form>
+            <form method="post" action="{{ url_for('admin_delete_admin', user_id=admin.id) }}"
+                  data-confirm="Delete admin account for {{ admin.display_name }}?">
+                <button class="btn-sm btn-sm-del" type="submit"><i class="bi bi-trash3"></i></button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="admins-card">
+    <h2><i class="bi bi-person-plus-fill"></i> Add Admin</h2>
+    <form method="post" action="{{ url_for('admin_add_admin') }}">
+        <div class="add-form">
+            <div class="field">
+                <label>Username or email</label>
+                <input type="text" name="username" placeholder="e.g. sarah or sarah@northwind-apparel.example" required>
+            </div>
+            <div class="field">
+                <label>Display name</label>
+                <input type="text" name="display_name" placeholder="e.g. Sarah Jones" required>
+            </div>
+            <div class="field">
+                <label>Password</label>
+                <input type="password" name="password" placeholder="Min 10 characters" minlength="10" required>
+            </div>
+            <div class="field">
+                <label>Access level</label>
+                <select name="role">
+                    <option value="super">Full access (everything)</option>
+                    <option value="retail">Retail deductions only</option>
+                    <option value="hq">HQ deductions only</option>
+                </select>
+            </div>
+            <button class="add-btn" type="submit"><i class="bi bi-plus-lg"></i> Add</button>
+        </div>
+    </form>
+</div>
+
+<div class="admins-card">
+    <h2><i class="bi bi-people-fill"></i> Everyone
+        <span class="sub">{{ pager.total }} login{{ 's' if pager.total != 1 }}</span></h2>
+    {{ list_pager(pager) }}
+    <div style="overflow-x:auto;">
+    <table class="roster">
+        <thead><tr><th>Login</th><th>Name</th><th>Access</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+        {% for u in roster %}
+        <tr>
+            <td>{{ u.login }}</td>
+            <td class="muted">{{ u.display_name or '—' }}</td>
+            <td>
+                <div class="caps">
+                    {% if u.is_admin %}
+                        {% for r in u.roles %}
+                        <span class="tag role-{{ r }}">
+                            {{ {'super':'Full access','retail':'Retail','hq':'HQ'}.get(r, r) }}</span>
+                        {% endfor %}
+                    {% endif %}
+                    {% if u.card_count %}<span class="tag tag-card">Cardholder · {{ u.card_count }}</span>{% endif %}
+                    {% if u.is_rm %}<span class="tag tag-rm">RM · {{ u.rm_store_count }}</span>{% endif %}
+                    {% if u.staff_store %}<span class="tag tag-card">Staff · {{ u.staff_store }}</span>{% endif %}
+                    {% if not u.is_admin and not u.card_count and not u.is_rm and not u.staff_store %}
+                        <span class="muted">no access</span>{% endif %}
+                </div>
+            </td>
+            <td>{% if u.is_active %}<span class="muted">Active</span>
+                {% else %}<span class="tag tag-off">Disabled</span>{% endif %}</td>
+            <td class="row-edit">
+                <button class="btn-sm" type="button" data-bs-toggle="collapse"
+                        data-bs-target="#access{{ u.id }}" aria-expanded="false"
+                        aria-controls="access{{ u.id }}">Edit access</button>
+            </td>
+        </tr>
+        {#- The access panel edits an EXISTING login rather than making a second
+            account somewhere else: a cardholder can be made an RM here, and their
+            stores picked in the same breath. -#}
+        <tr class="access-row">
+            <td colspan="5" class="access-cell">
+                <div class="collapse" id="access{{ u.id }}">
+                    <form class="access-form" method="post"
+                          action="{{ url_for('admin_person_access', user_id=u.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <div class="access-grid">
+                            <label class="access-field">
+                                <span>Name</span>
+                                <input type="text" name="display_name" maxlength="120"
+                                       value="{{ u.display_name or '' }}" placeholder="Their name">
+                            </label>
+                            <label class="access-field">
+                                <span>Admin access</span>
+                                <select name="admin_role">
+                                    <option value="" {% if not u.role %}selected{% endif %}>None — portal only</option>
+                                    <option value="super" {% if u.role == 'super' %}selected{% endif %}>Full access (everything)</option>
+                                    <option value="retail" {% if u.role == 'retail' %}selected{% endif %}>Retail deductions only</option>
+                                    <option value="hq" {% if u.role == 'hq' %}selected{% endif %}>HQ deductions only</option>
+                                </select>
+                            </label>
+                            <label class="access-field">
+                                <span>Login</span>
+                                <select name="login_active">
+                                    <option value="1" {% if u.is_active %}selected{% endif %}>Active</option>
+                                    <option value="0" {% if not u.is_active %}selected{% endif %}>Disabled</option>
+                                </select>
+                            </label>
+                        </div>
+
+                        <div class="access-block">
+                            <label class="access-check">
+                                <input type="checkbox" name="is_rm" value="1"
+                                       {% if u.is_rm %}checked{% endif %}>
+                                <span>Regional Manager — sees cash recon for the stores ticked below</span>
+                            </label>
+                            <div class="store-picker">
+                                {% for s in all_stores %}
+                                <label class="store-opt">
+                                    <input type="checkbox" name="rm_store" value="{{ s }}"
+                                           {% if s in u.rm_stores %}checked{% endif %}>
+                                    <span>{{ s }}</span>
+                                </label>
+                                {% endfor %}
+                            </div>
+                            <p class="access-note">Ticking a store moves it off whoever holds it now.
+                                Unticking one — or turning RM off — leaves it with no Regional Manager.</p>
+                        </div>
+
+                        <div class="access-block">
+                            <div class="access-label">Cards</div>
+                            {% if u.cards %}
+                            <div class="caps">
+                                {% for c in u.cards %}<span class="tag tag-card">{{ c.label }}</span>{% endfor %}
+                            </div>
+                            {% else %}
+                            <p class="access-note">No card access.</p>
+                            {% endif %}
+                            <p class="access-note">Card access is granted on
+                                <a href="{{ url_for('cc_home') }}">the card's own page</a>, where the
+                                statement and receipts live.</p>
+                        </div>
+
+                        <div class="access-actions">
+                            <button class="add-btn" type="submit">Save access</button>
+                            <span class="access-note">{{ u.login }}{% if u.staff_store %} · store login for {{ u.staff_store }}{% endif %}</span>
+                        </div>
+                    </form>
+                    <form class="access-pw" method="post"
+                          action="{{ url_for('admin_person_password', user_id=u.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="password" name="password" autocomplete="new-password"
+                               placeholder="New password (blank = generate one)">
+                        <button class="btn-sm" type="submit">Reset password</button>
+                    </form>
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {{ list_pager(pager) }}
+    <p class="muted" style="font-size:12px; margin:14px 0 0;">
+        <strong>Edit access</strong> changes an existing login — make a cardholder a
+        Regional Manager, give someone admin rights, disable a login or reset a password
+        without creating a second account. Card access itself is granted on each
+        <a href="{{ url_for('cc_home') }}">card's page</a>; the
+        <a href="{{ url_for('admin_regional_managers') }}">Regional Managers</a> page is
+        still where an RM's single company card is assigned.
+    </p>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='access-pages.js') }}"></script>{% endblock %}

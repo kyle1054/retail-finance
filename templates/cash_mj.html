@@ -1,0 +1,139 @@
+{% extends 'cash_base.html' %}
+{% block title %}{{ store }} — Expenses MJ{% endblock %}
+{% block topright %}
+<span style="font-size:13px;color:#615b5c;"><i class="bi bi-file-earmark-spreadsheet me-1"></i>{{ store }} · Expenses MJ</span>
+{% endblock %}
+
+{% block content %}
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+    <a class="cr-navlink" href="{{ url_for('cash_ledger', store=store, year=year, month=month) }}"><i class="bi bi-chevron-left"></i> Ledger</a>
+    <a class="cr-navlink" href="{{ url_for('cash_home', year=year, month=month) }}"><i class="bi bi-grid-1x2-fill"></i> All stores</a>
+    <a class="cr-navlink" href="{{ url_for('cash_xero_setup') }}"><i class="bi bi-sliders"></i> Xero setup</a>
+</div>
+
+<!-- Journal header -->
+<div class="cr-card" style="padding:14px 18px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+        <a class="cr-btn cr-btn-ghost" style="padding:5px 9px;" href="{{ url_for('cash_mj_preview', store=store, year=prev_year, month=prev_month) }}"><i class="bi bi-chevron-left"></i></a>
+        <div style="text-align:center;">
+            <div style="font-size:15px;font-weight:600;">{{ narration }}</div>
+            <div style="font-size:12px;color:#8a857d;">Journal date {{ month_end }} · Department Retail</div>
+        </div>
+        <a class="cr-btn cr-btn-ghost" style="padding:5px 9px;" href="{{ url_for('cash_mj_preview', store=store, year=next_year, month=next_month) }}"><i class="bi bi-chevron-right"></i></a>
+    </div>
+    {% if not tracking_name %}
+    <div class="cr-flash cr-warning" style="margin:12px 0 0;">
+        ⚠ No Xero tracking option set for {{ store }} — the <code>TrackingOption1</code> column will be blank.
+        Set it on the <a href="{{ url_for('cash_xero_setup') }}">Xero setup</a> page.
+    </div>
+    {% else %}
+    <div style="font-size:12px;color:#615b5c;margin-top:10px;"><i class="bi bi-tag"></i> Tracking: Store = <strong>{{ tracking_name }}</strong></div>
+    {% endif %}
+</div>
+
+{% if lines %}
+<form method="post" action="{{ url_for('cash_mj_export', store=store, year=year, month=month) }}" id="mjForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <div class="cr-card" style="padding:6px 4px;">
+        <div class="cr-sheet-scroll">
+        <table class="cr-ledger" id="mjTable">
+            <thead>
+                <tr>
+                    <th style="text-align:center;">On</th>
+                    <th style="text-align:left;">Description</th>
+                    <th style="text-align:left;">Code</th>
+                    <th style="text-align:left;">VAT</th>
+                    <th style="text-align:right;">Gross</th>
+                    <th style="text-align:right;">Net (ex-VAT)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ln in lines %}
+                <tr class="cr-row mj-row" data-id="{{ ln.id }}">
+                    <td style="text-align:center;">
+                        <input type="hidden" name="row" value="{{ ln.id }}">
+                        <input type="checkbox" name="include_{{ ln.id }}" value="1" checked class="mj-include">
+                    </td>
+                    <td style="min-width:280px;">
+                        <input class="cr-input" style="padding:7px 10px;font-size:12.5px;" type="text"
+                               name="desc_{{ ln.id }}" value="{{ ln.description }}">
+                    </td>
+                    <td>
+                        <input class="cr-input mj-code" style="max-width:90px;padding:7px 10px;" type="text"
+                               name="code_{{ ln.id }}" value="{{ ln.xero_code or '' }}" placeholder="####"
+                               {% if ln.unmapped %}style="border-color:#c99;"{% endif %}>
+                    </td>
+                    <td>
+                        <select class="cr-select mj-vat" style="max-width:190px;padding:7px 8px;font-size:12.5px;" name="vat_{{ ln.id }}">
+                            {% for val, label in vat_options %}
+                            <option value="{{ val }}" {% if ln.vat_type == val %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                    <td class="cr-num" style="width:110px;">
+                        <input class="cr-input mj-gross" style="text-align:right;padding:7px 10px;max-width:100px;font-variant-numeric:tabular-nums;"
+                               type="number" step="0.01" min="0" name="gross_{{ ln.id }}"
+                               value="{{ '%.2f'|format(ln.gross_cents / 100) }}">
+                    </td>
+                    <td class="cr-num mj-net" style="width:110px;">R {{ "%.2f"|format(ln.net_cents / 100) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr style="border-top:0.5px solid rgba(28,28,28,0.14);font-weight:600;">
+                    <td></td>
+                    <td colspan="3">Totals (included lines)</td>
+                    <td class="cr-num" id="grossTotal">R {{ "%.2f"|format(gross_total / 100) }}</td>
+                    <td class="cr-num" id="netTotal">R {{ "%.2f"|format(net_total / 100) }}</td>
+                </tr>
+                <tr style="font-weight:500;color:#615b5c;">
+                    <td></td>
+                    <td colspan="3" style="text-align:right;">VAT (input claim)</td>
+                    <td class="cr-num" id="vatTotal">R {{ "%.2f"|format(vat_total / 100) }}</td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+        </div>
+    </div>
+
+    <!-- Balancing lines added on export -->
+    <div class="cr-card">
+        <p class="cr-label" style="margin-bottom:10px;">Balancing lines (added to the CSV so it imports balanced)</p>
+        {% if not dear_code %}
+        <div class="cr-flash cr-warning" style="margin:0 0 10px;">
+            ⚠ No Cash In/Out (POS) code set for {{ store }} — the contra will import as <code>####</code>.
+            Set it on <a href="{{ url_for('cash_xero_setup') }}">Xero setup</a>.
+        </div>
+        {% endif %}
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 2px;font-size:13px;border-top:0.5px solid rgba(28,28,28,0.06);">
+            <span>POS expenses {{ store }} <span style="color:#8a857d;">· {{ dear_code or '####' }} · No VAT</span></span>
+            <span class="cr-num" style="color:#823721;" id="contraCell">Cr R {{ "%.2f"|format(contra_cents / 100) }}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 2px;font-size:13px;border-top:0.5px solid rgba(28,28,28,0.06);">
+            <span>Rounding <span style="color:#8a857d;">· {{ rounding_code }} · No VAT</span></span>
+            <span class="cr-num" id="roundingCell"></span>
+        </div>
+        <div id="balanceCheck" style="margin-top:12px;padding:9px 12px;border-radius:9px;font-size:12.5px;font-weight:600;
+             background:rgba(47,109,58,0.09);color:#2f5a37;">Balances ✓</div>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:24px;">
+        <div style="font-size:12px;color:#8a857d;">
+            Untick a line to leave it out. Edits here affect the export only — the ledger is untouched.
+        </div>
+        <button class="cr-btn" type="submit"><i class="bi bi-download"></i> Download Xero CSV</button>
+    </div>
+</form>
+{% else %}
+<div class="cr-card">
+    <div style="padding:40px 28px;text-align:center;color:#8a857d;font-size:14px;">
+        <i class="bi bi-inboxes" style="font-size:26px;opacity:.5;"></i>
+        <div style="margin-top:8px;">No expense entries for {{ store }} in {{ month_name }} {{ year }}.</div>
+    </div>
+</div>
+{% endif %}
+
+<script src="{{ url_for('static', filename='cash-mj.js') }}"></script>
+{% endblock %}

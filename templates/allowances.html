@@ -1,0 +1,162 @@
+{% extends 'base.html' %}
+{% block title %}Staff Allowances {{ year }} — NORTHWIND{% endblock %}
+{% block page_title %}Staff Allowances{% endblock %}
+
+{% block content %}
+
+<!-- Summary strip -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-xl-3">
+        <div class="stat-card">
+            <div class="stat-icon bg-blue-soft"><i class="bi bi-people-fill text-blue"></i></div>
+            <div>
+                <div class="stat-value">{{ rows|length }}</div>
+                <div class="stat-label">Staff</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-xl-3">
+        <div class="stat-card">
+            <div class="stat-icon bg-teal-soft"><i class="bi bi-wallet2 text-teal"></i></div>
+            <div>
+                <div class="stat-value">R {{ "{:,.0f}".format(totals.allocated) }}</div>
+                <div class="stat-label">Allocated {{ year }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-xl-3">
+        <div class="stat-card">
+            <div class="stat-icon bg-amber-soft"><i class="bi bi-bag-fill text-amber"></i></div>
+            <div>
+                <div class="stat-value">R {{ "{:,.0f}".format(totals.spent) }}</div>
+                <div class="stat-label">Spent</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-xl-3">
+        <div class="stat-card">
+            <div class="stat-icon {{ 'bg-red-soft' if totals.remaining < 0 else 'bg-green-soft' }}">
+                <i class="bi bi-piggy-bank-fill {{ 'text-red' if totals.remaining < 0 else 'text-green' }}"></i>
+            </div>
+            <div>
+                <div class="stat-value">R {{ "{:,.0f}".format(totals.remaining) }}</div>
+                <div class="stat-label">Remaining</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="d-flex align-items-center gap-3">
+            <span><i class="bi bi-wallet2 me-2 text-primary"></i>Allowances by Employee — {{ year }}</span>
+            <span class="btn-group btn-group-sm">
+                <a href="{{ url_for('hq_allowances', year=year) }}"
+                   class="btn {{ 'btn-primary' if not location else 'btn-outline-secondary' }}">All</a>
+                {% for loc in hq_stores %}
+                <a href="{{ url_for('hq_allowances', year=year, location=loc) }}"
+                   class="btn {{ 'btn-primary' if location == loc else 'btn-outline-secondary' }}">{{ loc }}</a>
+                {% endfor %}
+            </span>
+        </span>
+        <form method="get" class="d-flex align-items-center gap-2">
+            {% if location %}<input type="hidden" name="location" value="{{ location }}">{% endif %}
+            <label style="font-size:12px;color:#64748b;">Year</label>
+            <select name="year" class="form-select form-select-sm" style="width:100px;"
+                    data-submit-on-change>
+                {% for y in range(now.year - 1, now.year + 2) %}
+                <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+    <div class="table-responsive">
+        <table class="table mb-0">
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th>Location</th>
+                    <th style="text-align:right;">Allocated</th>
+                    <th style="text-align:right;color:#8a5220;">Spent</th>
+                    <th style="text-align:right;">Remaining</th>
+                    <th style="width:180px;">Used</th>
+                    <th style="width:40px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in rows %}
+                <tr>
+                    <td>
+                        <a href="{{ url_for('hq_employee_detail', emp_id=r.id, allowance_year=year) }}"
+                           class="fw-semibold text-decoration-none">{{ r.full_name }}</a>
+                        <div style="font-size:11px;color:#94a3b8;">{{ r.job_title or '' }}</div>
+                    </td>
+                    <td style="color:#64748b;">{{ r.current_store }}</td>
+                    <td style="text-align:right;">R {{ "%.2f"|format(r.allocated) }}</td>
+                    <td style="text-align:right;color:#8a5220;">R {{ "%.2f"|format(r.spent) }}</td>
+                    <td style="text-align:right;font-weight:600;
+                               color:{{ '#823721' if r.remaining < 0 else '#3b6d3f' }};">
+                        R {{ "%.2f"|format(r.remaining) }}
+                    </td>
+                    <td>
+                        {% set pct = (r.spent / r.allocated * 100) if r.allocated else (100 if r.spent else 0) %}
+                        <div class="progress" style="height:8px;">
+                            <div class="progress-bar {{ 'bg-danger' if pct > 100 else 'bg-success' }}"
+                                 style="width:{{ [pct, 100]|min }}%;"></div>
+                        </div>
+                        <div style="font-size:11px;color:#94a3b8;">{{ "%.0f"|format(pct) }}%</div>
+                    </td>
+                    <td style="text-align:right;">
+                        <button class="btn btn-sm btn-outline-secondary edit-allocation" style="padding:2px 7px;"
+                                title="Edit allocation" data-bs-toggle="modal" data-bs-target="#setAllocationModal"
+                                data-emp-id="{{ r.id }}" data-emp-name="{{ r.full_name }}"
+                                data-allocated="{{ '%.2f'|format(r.allocated) }}">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" class="text-center text-muted py-4">
+                    No active HQ/DC employees yet — add them under Employees.
+                </td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Set / Edit Allocation (shared modal, filled per row) -->
+<div class="modal fade" id="setAllocationModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content border-0" style="border-radius:14px;">
+            <div class="modal-header border-0 pb-0">
+                <h6 class="modal-title fw-bold">Allowance Allocation — {{ year }}</h6>
+                <button class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{{ url_for('hq_set_allowance') }}">
+                <input type="hidden" name="employee_id" id="allocEmpId">
+                <input type="hidden" name="year" value="{{ year }}">
+                <input type="hidden" name="location" value="{{ location }}">
+                <div class="modal-body">
+                    <div id="allocEmpName" class="fw-semibold mb-2" style="font-size:14px;"></div>
+                    <label class="form-label fw-semibold" style="font-size:13px;">Annual amount <span class="text-danger">*</span></label>
+                    <div class="input-group">
+                        <span class="input-group-text">R</span>
+                        <input type="number" name="allocated" id="allocAmount" class="form-control"
+                               step="0.01" min="0" placeholder="e.g. 5000" required>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary btn-sm px-4">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='allowances.js') }}"></script>
+{% endblock %}

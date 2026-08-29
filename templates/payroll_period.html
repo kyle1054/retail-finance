@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+{% block title %}Period Export — Northwind Deductions{% endblock %}
+{% block page_title %}Period Deductions Export{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <strong><i class="bi bi-calendar-range me-2"></i>Export deductions for a period</strong>
+            </div>
+            <div class="p-4">
+                <p style="color:var(--text-secondary);font-size:13px;line-height:1.6;">
+                    Choose a start and end month. The export lists every retail deduction (uniform, lay-by and
+                    undercharge) falling in each month of the range, one month-by-month block per month, with a
+                    monthly subtotal and an overall grand total. Ranges can cross a year.
+                </p>
+
+                <form method="post" action="{{ url_for('payroll_period') }}">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold" style="font-size:13px;">From</label>
+                            <div class="d-flex gap-2">
+                                <select name="start_month" class="form-select">
+                                    {% for i in range(1,13) %}
+                                    <option value="{{ i }}" {% if i == now.month %}selected{% endif %}>{{ MONTH_FULL[i] }}</option>
+                                    {% endfor %}
+                                </select>
+                                <input type="number" name="start_year" class="form-control" value="{{ now.year }}" style="width:110px;">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold" style="font-size:13px;">To</label>
+                            <div class="d-flex gap-2">
+                                <select name="end_month" class="form-select">
+                                    {% for i in range(1,13) %}
+                                    <option value="{{ i }}" {% if i == now.month %}selected{% endif %}>{{ MONTH_FULL[i] }}</option>
+                                    {% endfor %}
+                                </select>
+                                <input type="number" name="end_year" class="form-control" value="{{ now.year }}" style="width:110px;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary px-5 mt-4">
+                        <i class="bi bi-download me-2"></i>Export Excel
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card p-4" style="font-size:13px;">
+            <div class="fw-bold mb-3" style="font-size:14px;"><i class="bi bi-info-circle me-2 text-primary"></i>What you get</div>
+            <ol class="ps-3" style="line-height:2;">
+                <li>One block per month in the range</li>
+                <li>Each block lists staff with deductions that month, grouped by store</li>
+                <li>A subtotal per month and a grand total at the end</li>
+            </ol>
+            <hr style="border-color:var(--border);">
+            <div style="color:var(--text-secondary);font-size:12px;">
+                <i class="bi bi-exclamation-circle me-1"></i>
+                Only staff with a deduction in a given month appear in that month's block. Maximum range is 24 months.
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

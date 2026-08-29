@@ -1,0 +1,172 @@
+{% extends 'cash_base.html' %}
+{% block title %}Xero / MJ setup — Cash Recon{% endblock %}
+{% block topright %}
+<span style="font-size:13px;color:#615b5c;"><i class="bi bi-sliders me-1"></i>Xero / MJ setup</span>
+{% endblock %}
+
+{% block content %}
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+    <a class="cr-navlink" href="{{ url_for('cash_home') }}"><i class="bi bi-grid-1x2-fill"></i> All stores</a>
+</div>
+
+<div style="max-width:920px;margin:0 auto;">
+
+    {% set unmapped_cats = categories|selectattr('active')|selectattr('kind','equalto','expense')|rejectattr('xero_code')|list %}
+    {% if unmapped_cats %}
+    <div style="margin-bottom:14px;padding:11px 14px;border-radius:10px;background:#fff8f0;border:0.5px solid #e8c99a;font-size:12.5px;color:#7a5320;">
+        <i class="bi bi-exclamation-triangle"></i>
+        {{ unmapped_cats|length }} active expense categor{{ 'y' if unmapped_cats|length == 1 else 'ies' }} {{ 'has' if unmapped_cats|length == 1 else 'have' }} no Xero code and will export as <code>####</code>:
+        <strong>{{ unmapped_cats|map(attribute='name')|join(', ') }}</strong>. Set {{ 'its' if unmapped_cats|length == 1 else 'their' }} account code below.
+    </div>
+    {% endif %}
+
+    <!-- Categories -->
+    <div class="cr-card">
+        <p class="cr-label" style="margin-bottom:4px;">Expense categories → Xero</p>
+        <div style="font-size:12.5px;color:#8a857d;margin-bottom:14px;">
+            Set each category's <strong>Xero account code</strong> and its <strong>default VAT</strong>.
+            These feed the manual-journal export; you can still override any single line before you download it.
+        </div>
+        <form method="post" action="{{ url_for('cash_save_categories') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="cr-sheet-scroll">
+            <table class="cr-ledger">
+                <thead>
+                    <tr>
+                        <th style="text-align:left;">Category</th>
+                        <th style="text-align:left;">Account code</th>
+                        <th style="text-align:left;">Default VAT</th>
+                        <th style="text-align:center;">Active</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in categories if c.kind == 'expense' %}
+                    <tr class="cr-row" style="{% if not c.active %}opacity:.5;{% endif %}">
+                        <td style="font-weight:500;">{{ c.name }}<input type="hidden" name="cat_id" value="{{ c.id }}"></td>
+                        <td><input class="cr-input" style="max-width:130px;padding:7px 10px;" type="text"
+                                   name="code_{{ c.id }}" value="{{ c.xero_code or '' }}" placeholder="e.g. 6120"></td>
+                        <td>
+                            <select class="cr-select" style="max-width:210px;padding:7px 10px;" name="vat_{{ c.id }}">
+                                {% for val, label in vat_options %}
+                                <option value="{{ val }}" {% if c.vat_type == val %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td style="text-align:center;">
+                            <input type="checkbox" name="active_{{ c.id }}" value="1" {% if c.active %}checked{% endif %}
+                                   title="Untick to archive — hides it from the stores' picker">
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            </div>
+            <div style="display:flex;justify-content:flex-end;margin-top:14px;">
+                <button class="cr-btn" type="submit"><i class="bi bi-check-lg"></i> Save categories</button>
+            </div>
+        </form>
+
+        <!-- Add a category -->
+        <form method="post" action="{{ url_for('cash_add_category') }}"
+              style="margin-top:18px;padding-top:16px;border-top:0.5px solid rgba(28,28,28,0.10);">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <p class="cr-label" style="margin-bottom:10px;">Add an expense category</p>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+                <input class="cr-input" style="flex:2;min-width:200px;padding:9px 12px;" type="text"
+                       name="name" placeholder="Category name (what stores pick)" required>
+                <input class="cr-input" style="flex:0 0 120px;padding:9px 12px;" type="text"
+                       name="code" placeholder="Code e.g. 6120">
+                <select class="cr-select" style="flex:0 0 200px;padding:9px 12px;" name="vat">
+                    {% for val, label in vat_options %}
+                    <option value="{{ val }}" {% if val == 'novat' %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <button class="cr-btn cr-btn-ghost" type="submit"><i class="bi bi-plus-lg"></i> Add</button>
+            </div>
+            <div style="font-size:11.5px;color:#8a857d;margin-top:8px;">
+                New categories appear immediately in every store's cash-recon picker.
+            </div>
+        </form>
+    </div>
+
+    <!-- Stores -->
+    <div class="cr-card">
+        <p class="cr-label" style="margin-bottom:4px;">Stores → Xero tracking</p>
+        <div style="font-size:12.5px;color:#8a857d;margin-bottom:14px;">
+            The <strong>tracking option</strong> is the Xero <em>Store</em> value put on every expense line
+            (e.g. “Wellstone Park - EC”). The <strong>cash code</strong> is the store's Cash In/Out (POS) account —
+            it's the account used by the cash-sales journal. The <strong>cash journal label</strong> is the short
+            store name used on the Shopify comparison and its downloaded workbook (e.g. “Parkview Park”
+            where the app says “Parkview Mall”). It does not appear in the journal CSV.
+        </div>
+        <form method="post" action="{{ url_for('cash_save_stores') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="cr-sheet-scroll">
+            <table class="cr-ledger">
+                <thead>
+                    <tr>
+                        <th style="text-align:left;">Store</th>
+                        <th style="text-align:left;">Xero tracking option</th>
+                        <th style="text-align:left;">Cash code (POS)</th>
+                        <th>Cash journal label</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in stores %}
+                    <tr class="cr-row">
+                        <td style="font-weight:500;">{{ s.name }}<input type="hidden" name="store_name" value="{{ s.name }}"></td>
+                        <td><input class="cr-input" style="max-width:260px;padding:7px 10px;" type="text"
+                                   name="tracking_{{ loop.index0 }}" value="{{ s.xero_tracking_name or '' }}"
+                                   placeholder="e.g. Wellstone Park - EC"
+                                   {% if not s.xero_tracking_name %}style="border-color:#c99;"{% endif %}></td>
+                        <td><input class="cr-input" style="max-width:130px;padding:7px 10px;" type="text"
+                                   name="storecode_{{ loop.index0 }}" value="{{ s.store_code or '' }}"
+                                   placeholder="e.g. SC-104"></td>
+                        <td><input class="cr-input cs-label-input" type="text"
+                                   name="cashlabel_{{ loop.index0 }}" value="{{ s.cash_sales_label or '' }}"
+                                   placeholder="Defaults to store name"></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            </div>
+            <div style="display:flex;justify-content:flex-end;margin-top:14px;">
+                <button class="cr-btn" type="submit"><i class="bi bi-check-lg"></i> Save stores</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Cash-sales journal -->
+    <div class="cr-card">
+        <p class="cr-label" style="margin-bottom:4px;">Cash-sales journal</p>
+        <div style="font-size:12.5px;color:#8a857d;margin-bottom:14px;">
+            The monthly cash-split journal puts each store's captured cash sales against its cash code above.
+            Its final control-account row carries the balancing credit, so the journal totals zero and
+            Xero accepts the import. Set that control account and the journal's narration here.
+        </div>
+        <form method="post" action="{{ url_for('cash_save_cash_sales_settings') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;">
+                <div>
+                    <label class="cr-label" style="margin-bottom:4px;">Control account code</label>
+                    <input class="cr-input" style="max-width:160px;padding:9px 12px;" type="text"
+                           name="contra_code" value="{{ cash_sales_contra }}" placeholder="e.g. 8990.9">
+                </div>
+                <div style="flex:1;min-width:240px;">
+                    <label class="cr-label" style="margin-bottom:4px;">Narration prefix</label>
+                    <input class="cr-input" style="width:100%;padding:9px 12px;" type="text"
+                           name="narration" value="{{ cash_sales_narration }}"
+                           placeholder="e.g. Retail cash sales journal">
+                </div>
+                <button class="cr-btn" type="submit"><i class="bi bi-check-lg"></i> Save</button>
+            </div>
+            <div style="font-size:11.5px;color:#8a857d;margin-top:8px;">
+                The month is appended automatically, e.g. “{{ cash_sales_narration }} - June 2026”.
+                Build &amp; download it from the
+                <a href="{{ url_for('cash_home') }}">all-stores overview</a>.
+            </div>
+        </form>
+    </div>
+
+</div>
+{% endblock %}

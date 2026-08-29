@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <script src="{{ url_for('static', filename='csrf.js') }}"></script>
+    <script src="{{ url_for('static', filename='shell-common.js') }}"></script>
+    <title>{% block title %}My Deductions — NORTHWIND{% endblock %}</title>
+    <link href="{{ url_for('static', filename='vendor/inter.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='vendor/bootstrap.purged.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='vendor/bootstrap-icons.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
+    <script src="{{ url_for('static', filename='scroll-continuity.js') }}" defer></script>
+    <link href="{{ url_for('static', filename='portal-shell.css') }}" rel="stylesheet">
+</head>
+<body class="portal-body">
+    <div class="portal-shell">
+        <div class="portal-topbar">
+            <a class="portal-header" href="{{ url_for('portal_hub') if session.cc_user else url_for('landing') }}" title="Back to main menu">
+                <span class="brand-icon"><i class="bi bi-layers-fill"></i></span>
+                <div>
+                    <div class="portal-title">Northwind Apparel</div>
+                    <div class="portal-sub">{{ 'My workspace' if session.cc_user else 'My Deductions' }}</div>
+                </div>
+                <i class="bi bi-house-door portal-home-hint"></i>
+            </a>
+            {% if session.cc_user %}
+            <nav class="portal-cap-nav" aria-label="My workspaces">
+                {% if session.admin %}<a href="{{ url_for('dashboard') }}"><i class="bi bi-layers"></i><span>Deductions</span></a>{% endif %}
+                {% if portal_caps.is_rm %}<a href="{{ url_for('rm_dashboard') }}"><i class="bi bi-graph-up-arrow"></i><span>Regional dashboard</span></a>{% endif %}
+                {% if portal_caps.has_cards %}<a href="{{ url_for('cc_portal') }}" class="{% if request.endpoint and request.endpoint.startswith('cc_portal') %}active{% endif %}"><i class="bi bi-credit-card-2-front"></i><span>{{ 'My credit card' if portal_caps.is_rm else 'My cards' }}</span>{% if portal_caps.card_task_count %}<span class="portal-cap-badge" aria-label="{{ portal_caps.card_task_count }} card tasks outstanding">{{ portal_caps.card_task_count }} due</span>{% endif %}</a>{% endif %}
+            </nav>
+            {% if portal_identity %}
+            <details class="portal-account">
+                <summary aria-label="Account menu for {{ portal_identity.name }}"><i class="bi bi-person-circle"></i><span class="portal-account-name">{{ portal_identity.name }}</span><i class="bi bi-chevron-down"></i></summary>
+                <div class="portal-account-menu">
+                    {% if portal_caps.is_rm and portal_caps.has_cards %}<a href="{{ url_for('portal_hub') }}"><i class="bi bi-grid"></i> Workspace home</a>{% endif %}
+                    <a href="{{ url_for('cc_portal_logout') }}" class="portal-account-logout"><i class="bi bi-box-arrow-right"></i> Log out</a>
+                </div>
+            </details>
+            {% endif %}
+            {% endif %}
+        </div>
+        {% block breadcrumb %}{% endblock %}
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- Toast container + flashed messages (no Bootstrap JS in this layout) -->
+    <div id="toast-container" class="app-toast-container"></div>
+    {% for category, msg in get_flashed_messages(with_categories=true) %}
+    <span hidden data-flash-message="{{ msg }}" data-flash-category="{{ category }}"></span>
+    {% endfor %}
+</body>
+</html>

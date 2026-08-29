@@ -1,0 +1,80 @@
+{# Inline fragment injected under a store's overview row (no page navigation).
+   Rendered by cash_store_days; day-row toggling is handled by cash_overview.html
+   delegated JS (injected <script> tags do not execute). #}
+{% if data.days %}
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:8px 6px 10px;">
+    <div style="font-size:12px;color:#615b5c;">
+        Opening <strong>R {{ data.opening|rands }}</strong>
+        &nbsp;→&nbsp; Closing <strong style="{% if data.closing < 0 %}color:#823721;{% endif %}">R {{ data.closing|rands }}</strong>
+        <span style="color:#a8a39b;">·</span>
+        In <span style="color:#2f5a37;">R {{ data.total_in|rands }}</span>
+        <span style="color:#a8a39b;">·</span>
+        Exp <span style="color:#823721;">R {{ data.total_expense|rands }}</span>
+        <span style="color:#a8a39b;">·</span>
+        Banked R {{ data.total_banked|rands }}
+        {% if data.total_adjust %}<span style="color:#a8a39b;">·</span> Adjust <span style="color:#823721;">R {{ data.total_adjust|rands }}</span>{% endif %}
+    </div>
+</div>
+<table style="width:100%;border-collapse:collapse;font-size:12.5px;background:#fff;border-radius:10px;overflow:hidden;">
+    <thead>
+        <tr style="color:#a8a39b;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;background:#faf8f6;">
+            <th style="text-align:left;padding:7px 10px;">Day</th>
+            <th style="text-align:right;padding:7px 10px;">Opening</th>
+            <th style="text-align:right;padding:7px 10px;">In</th>
+            <th style="text-align:right;padding:7px 10px;">Expenses</th>
+            <th style="text-align:right;padding:7px 10px;">Banked</th>
+            <th style="text-align:right;padding:7px 10px;">Adjust</th>
+            <th style="text-align:right;padding:7px 10px;">Closing</th>
+            <th style="text-align:right;padding:7px 10px;">#</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for day in data.days %}
+        {% set day_detail_id = 'day-detail-' ~ (store|replace(' ', '-')|replace('&', 'and')) ~ '-' ~ day.date %}
+        <tr class="day-row" style="border-top:0.5px solid rgba(28,28,28,0.06);cursor:pointer;">
+            <td style="padding:9px 10px;white-space:nowrap;font-weight:500;">
+                <button type="button" class="cash-disclosure"
+                        data-cash-day-toggle data-cash-day-label="{{ day.date }}"
+                        aria-expanded="false" aria-controls="{{ day_detail_id }}"
+                        aria-label="Show entries for {{ day.date }}">
+                    <i class="bi bi-chevron-right daychev" aria-hidden="true"></i>
+                    <span>{{ day.date[8:10] }}/{{ day.date[5:7] }}/{{ day.date[0:4] }}</span>
+                </button>
+            </td>
+            <td style="padding:9px 10px;text-align:right;white-space:nowrap;color:#615b5c;">R {{ day.day_opening|rands }}</td>
+            <td style="padding:9px 10px;text-align:right;white-space:nowrap;color:#2f5a37;">R {{ day['in']|rands }}</td>
+            <td style="padding:9px 10px;text-align:right;white-space:nowrap;color:#823721;">R {{ day.expense|rands }}</td>
+            <td style="padding:9px 10px;text-align:right;white-space:nowrap;color:#615b5c;">R {{ day.banked|rands }}</td>
+            <td style="padding:9px 10px;text-align:right;white-space:nowrap;color:#823721;">{% if day.adjust %}R {{ day.adjust|rands }}{% else %}<span style="color:#c9c4bc;">—</span>{% endif %}</td>
+            <td style="padding:9px 10px;text-align:right;white-space:nowrap;font-weight:600;{% if day.day_closing < 0 %}color:#823721;{% endif %}">R {{ day.day_closing|rands }}</td>
+            <td style="padding:9px 10px;text-align:right;white-space:nowrap;color:#8a857d;">{{ day.count }}</td>
+        </tr>
+        <tr class="day-detail" id="{{ day_detail_id }}" hidden>
+            <td colspan="8" style="padding:0 10px 10px;background:#fbfaf9;">
+                <table style="width:100%;border-collapse:collapse;font-size:12px;">
+                    <tbody>
+                        {% for e in day.entries %}
+                        <tr style="border-top:0.5px solid rgba(28,28,28,0.05);">
+                            <td style="padding:7px 10px;">
+                                <div style="font-weight:500;">{{ e.description }}</div>
+                                {% if e.note %}<div style="font-size:11px;color:#8a857d;">{{ e.note }}</div>{% endif %}
+                            </td>
+                            <td style="padding:7px 10px;text-align:right;white-space:nowrap;color:#2f5a37;">{% if e.income is not none %}R {{ e.income|rands }}{% else %}—{% endif %}</td>
+                            <td style="padding:7px 10px;text-align:right;white-space:nowrap;color:#823721;">{% if e.expense is not none %}R {{ e.expense|rands }}{% else %}—{% endif %}</td>
+                            <td style="padding:7px 10px;text-align:right;white-space:nowrap;font-weight:600;{% if e.running < 0 %}color:#823721;{% endif %}">R {{ e.running|rands }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <div style="text-align:right;padding:8px 6px 2px;">
+                    <a class="cr-navlink" href="{{ url_for('cash_ledger', store=store, year=day.date[0:4]|int, month=day.date[5:7]|int) }}"
+                       style="font-size:12px;"><i class="bi bi-journal-text"></i> Open full journal to edit →</a>
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div style="padding:16px;color:#8a857d;font-size:13px;">No entries in this range.</div>
+{% endif %}

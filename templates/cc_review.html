@@ -1,0 +1,328 @@
+{% extends 'base.html' %}
+{% block title %}Xero Review — Credit Cards{% endblock %}
+{% block page_title %}Xero Review{% endblock %}
+
+{% from '_cc_review_filters.html' import preserve_filters with context %}
+{% from '_pager.html' import pager as list_pager %}
+
+{% block content %}
+<link href="{{ url_for('static', filename='cc-review.css') }}" rel="stylesheet">
+
+<div class="cc-review-heading">
+    <div class="cc-review-heading-copy">
+        <p class="eyebrow mb-1">Finance workspace</p>
+        <h2>Move transactions from evidence to Xero</h2>
+        <p class="text-muted mb-0">Build a focused queue across the card accounts open in Xero,
+            review the evidence, then close ready transactions in one pass.</p>
+    </div>
+    <div class="cc-review-heading-actions">
+        <details class="cc-export-menu">
+            <summary class="btn btn-outline-secondary">
+                <i class="bi bi-download me-1"></i> Export current view
+                <i class="bi bi-chevron-down ms-1"></i>
+            </summary>
+            <div class="cc-export-menu-panel">
+                <p>
+                    Uses the cards, month, status and search shown below.
+                    Every exported row remains one transaction.
+                </p>
+                <form method="get" action="{{ url_for('cc_review_export_zip') }}">
+                    {{ preserve_filters() }}
+                    <button class="cc-export-choice">
+                        <i class="bi bi-file-earmark-zip"></i>
+                        <span>
+                            <strong>Finance pack</strong>
+                            <small>Excel index + linked receipts in transaction folders</small>
+                        </span>
+                        <i class="bi bi-arrow-down"></i>
+                    </button>
+                </form>
+                <form method="get" action="{{ url_for('cc_review_export_xlsx') }}">
+                    {{ preserve_filters() }}
+                    <button class="cc-export-choice">
+                        <i class="bi bi-file-earmark-spreadsheet"></i>
+                        <span>
+                            <strong>Transactions only</strong>
+                            <small>A clean Excel checklist without receipt files</small>
+                        </span>
+                        <i class="bi bi-arrow-down"></i>
+                    </button>
+                </form>
+                <small class="cc-export-note">
+                    Reconciliation aid only — no Xero API or import-format dependency.
+                </small>
+            </div>
+        </details>
+        <a class="btn btn-link cc-review-overview-link" href="{{ url_for('cc_home') }}">
+            <i class="bi bi-grid me-1"></i> Card overview
+        </a>
+    </div>
+</div>
+
+<section class="cc-review-metrics" aria-label="Review queue summary">
+    <div class="cc-review-metric">
+        <span>Unreconciled</span>
+        <strong>{{ counts.unreconciled }}</strong>
+    </div>
+    <div class="cc-review-metric is-warn">
+        <span>Needs cardholder</span>
+        <strong>{{ counts.needs_cardholder }}</strong>
+    </div>
+    <div class="cc-review-metric is-ai">
+        <span>AI matches to review</span>
+        <strong>{{ counts.needs_ai }}</strong>
+    </div>
+    <div class="cc-review-metric is-ready">
+        <span>Ready for Xero</span>
+        <strong>{{ counts.ready }}</strong>
+    </div>
+    <div class="cc-review-metric is-done">
+        <span>Reconciled</span>
+        <strong>{{ counts.reconciled }}</strong>
+    </div>
+</section>
+
+<section class="cc-review-controls" aria-labelledby="ccReviewFilterTitle">
+    <div class="cc-review-controls-heading">
+        <div>
+            <span class="cc-section-kicker">Queue scope</span>
+            <h2 id="ccReviewFilterTitle">Choose what finance works on</h2>
+        </div>
+        <span class="cc-review-scope-note">Filters stay applied to review, pagination and exports.</span>
+    </div>
+    <form method="get" class="cc-review-filters" aria-label="Filter transactions">
+        <input type="hidden" name="cards_present" value="1">
+        <div class="cc-review-filter cc-card-picker-field">
+            <span class="cc-review-filter-label" id="reviewCardLabel">Card accounts</span>
+            <details class="cc-card-picker">
+                <summary class="form-control cc-card-picker-summary" aria-labelledby="reviewCardLabel">
+                    <span>
+                        <i class="bi bi-credit-card-2-front me-1"></i>
+                        {{ selected_ids|length }} of {{ cards|length }} cards
+                    </span>
+                    <i class="bi bi-chevron-down"></i>
+                </summary>
+                <fieldset class="cc-card-picker-menu">
+                    <legend>Select card accounts</legend>
+                    {% for card in cards %}
+                    <label class="cc-card-option">
+                        <input type="checkbox" name="card_id" value="{{ card.id }}"
+                               {% if card.id in selected_ids %}checked{% endif %}>
+                        <span>
+                            <strong>{{ card.display_name or card.card_name }}</strong>
+                            {% if card.display_name %}<small>{{ card.card_name }}</small>{% endif %}
+                        </span>
+                    </label>
+                    {% else %}
+                    <p class="text-muted small mb-0">No active cards.</p>
+                    {% endfor %}
+                </fieldset>
+            </details>
+        </div>
+
+        <div class="cc-review-filter">
+            <label for="reviewPeriod">Statement month</label>
+            <select id="reviewPeriod" name="period" class="form-select">
+                <option value="">All months</option>
+                {% for item in periods %}
+                {% set value = '%04d-%02d'|format(item.year, item.month) %}
+                <option value="{{ value }}" {% if value == selected_period %}selected{% endif %}>
+                    {{ ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][item.month] }}
+                    {{ item.year }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="cc-review-filter">
+            <label for="reviewStatus">Status</label>
+            <select id="reviewStatus" name="status" class="form-select">
+                <option value="unreconciled" {% if selected_status == 'unreconciled' %}selected{% endif %}>All unreconciled</option>
+                <option value="needs_cardholder" {% if selected_status == 'needs_cardholder' %}selected{% endif %}>Needs cardholder</option>
+                <option value="needs_ai" {% if selected_status == 'needs_ai' %}selected{% endif %}>Needs AI review</option>
+                <option value="ready" {% if selected_status == 'ready' %}selected{% endif %}>Ready for Xero</option>
+                <option value="personal" {% if selected_status == 'personal' %}selected{% endif %}>Personal expenses</option>
+                <option value="reconciled" {% if selected_status == 'reconciled' %}selected{% endif %}>Reconciled</option>
+            </select>
+        </div>
+
+        <div class="cc-review-filter cc-review-search">
+            <label for="reviewSearch">Search</label>
+            <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input id="reviewSearch" name="q" value="{{ search }}" class="form-control"
+                       maxlength="100" placeholder="Merchant, reason, location or card">
+            </div>
+        </div>
+
+        <button class="btn btn-primary cc-review-apply">
+            <i class="bi bi-funnel me-1"></i> Build queue
+        </button>
+        {% if selected_period or search or selected_status != 'unreconciled' or selected_ids|length != cards|length %}
+        <a class="btn btn-link cc-review-clear" href="{{ url_for('cc_review') }}">Reset</a>
+        {% endif %}
+    </form>
+</section>
+
+<details class="cc-ready-rule">
+    <summary><i class="bi bi-check2-circle"></i><strong>What makes a transaction ready for Xero?</strong><i class="bi bi-chevron-down ms-auto"></i></summary>
+    <p>A ready transaction has a receipt or is personal, has a reason and location,
+        was submitted to finance, and has no receipt match awaiting a decision. An open
+        VAT tax-invoice request also blocks readiness.
+        Account coding is shown as a suggestion and does not block readiness.</p>
+</details>
+
+{% if rows %}
+<form method="post" id="ccReviewFilterState" hidden>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {{ preserve_filters() }}
+</form>
+{# Split review workspace. The queue on the left is the same list at every width;
+   on a wide screen static/cc-review.js also fills the stage on the right from
+   cc_review_line_panel, so finance reads evidence without opening and closing a
+   drawer per transaction. Below that width — and with JavaScript unavailable —
+   each row's Review control is exactly what it was: the offcanvas shell if
+   Bootstrap is there, the card month if it is not. #}
+<div class="cc-review-workspace" data-cc-workspace>
+<form method="post" action="{{ url_for('cc_review_reconcile') }}" id="ccReviewActionForm"
+      class="cc-review-queue-pane">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {{ preserve_filters() }}
+    <div class="cc-queue-heading">
+        <div>
+            <span class="cc-section-kicker">Transaction queue</span>
+            <h2>Review one transaction at a time</h2>
+        </div>
+        <span class="cc-queue-result">{{ pager.total }} transaction{{ '' if pager.total == 1 else 's' }} in this view</span>
+    </div>
+    <div class="cc-review-actionbar" aria-live="polite">
+        <div class="cc-review-selection-copy">
+            <strong>Ready to close</strong>
+            <span data-cc-selected-count>0 selected</span>
+        </div>
+        <label class="cc-select-all">
+            <input type="checkbox" data-cc-select-all>
+            <span>Select all ready rows</span>
+        </label>
+        <button class="btn btn-success ms-auto" type="submit" data-cc-reconcile>
+            <i class="bi bi-check2-square me-1"></i> Mark selected reconciled
+        </button>
+    </div>
+
+    <ul class="cc-queue" data-cc-queue>
+        {% for line in rows %}
+        <li class="cc-queue-row{% if line.ready_for_xero %} is-ready{% endif %}"
+            data-cc-row data-cc-line-id="{{ line.id }}"
+            data-cc-panel="{{ line.panel_url }}">
+            <div class="cc-queue-select">
+                <input class="form-check-input" type="checkbox" name="line_id"
+                       value="{{ line.id }}" data-cc-line
+                       aria-label="Select {{ line.reference }} on {{ line.line_date }}"
+                       {% if not line.ready_for_xero or line.xero_reconciled %}disabled{% endif %}>
+            </div>
+            <p class="cc-queue-merchant">{{ line.reference }}</p>
+            <p class="cc-queue-amount">R {{ ((line.amount_cents|abs)/100)|rands }}</p>
+            <p class="cc-queue-meta">
+                <span>{{ line.line_date or 'No date' }}</span>
+                <span>{{ line.display_name or line.card_name }}</span>
+                <span>{% if line.submitted_at %}Submitted {{ line.submitted_at[:10] }}{% else %}Not submitted{% endif %}</span>
+            </p>
+            <p class="cc-queue-status">
+                {% if line.xero_reconciled %}
+                <span class="cc-state is-reconciled"><i class="bi bi-check2-all"></i>Reconciled</span>
+                {% elif line.ready_for_xero %}
+                <span class="cc-state is-ready"><i class="bi bi-check2-circle"></i>Ready for Xero</span>
+                {% elif line.has_pending_suggestion %}
+                <span class="cc-state is-ai"><i class="bi bi-magic"></i>AI decision</span>
+                {% else %}
+                <span class="cc-state is-waiting"><i class="bi bi-person-exclamation"></i>Needs cardholder</span>
+                {% endif %}
+                {% if line.vat_invoice_required %}
+                <span class="cc-review-vat"><i class="bi bi-file-earmark-text"></i> VAT tax invoice requested</span>
+                {% endif %}
+            </p>
+            {# Three chips read well beside the stage; on a phone they cost three
+               lines each row, so the same facts collapse to one summary chip and
+               the detail stays one tap away in the drawer (CSS swaps them). #}
+            {% set missing = [] %}
+            {% if not (line.personal or line.has_receipt) %}{% set _ = missing.append('a receipt') %}{% endif %}
+            {% if not line.has_reason %}{% set _ = missing.append('a reason') %}{% endif %}
+            {% if not line.has_location %}{% set _ = missing.append('a location') %}{% endif %}
+            <div class="cc-evidence">
+                <span class="cc-evidence-brief {% if missing %}is-missing{% else %}is-complete{% endif %}">
+                    <i class="bi {% if missing %}bi-exclamation-circle{% else %}bi-check2-circle{% endif %}"></i>
+                    {% if missing %}Needs {{ missing|join(', ') }}{% elif line.personal %}Personal — evidence complete{% else %}Evidence complete{% endif %}
+                </span>
+                <span class="cc-evidence-detail {% if line.personal or line.has_receipt %}is-complete{% else %}is-missing{% endif %}">
+                    <i class="bi {% if line.personal %}bi-person-badge{% else %}bi-paperclip{% endif %}"></i>
+                    {% if line.personal %}Personal{% elif line.has_receipt %}{{ line.receipt_count }} receipt{{ '' if line.receipt_count == 1 else 's' }}{% else %}No receipt{% endif %}
+                </span>
+                <span class="cc-evidence-detail {% if line.has_reason %}is-complete{% else %}is-missing{% endif %}">
+                    <i class="bi bi-chat-left-text"></i>{{ line.reason|truncate(90, True, '…') if line.has_reason else 'No reason' }}
+                </span>
+                <span class="cc-evidence-detail {% if line.has_location %}is-complete{% else %}is-missing{% endif %}">
+                    <i class="bi bi-geo-alt"></i>{{ line.location if line.has_location else 'No location' }}
+                </span>
+            </div>
+            <div class="cc-queue-actions">
+                {% set vat_label = 'Clear VAT invoice request' if line.vat_invoice_required else 'Request VAT tax invoice' %}
+                <button class="btn btn-sm cc-review-vat-toggle{% if line.vat_invoice_required %} is-active{% endif %}"
+                        type="submit" form="ccReviewFilterState" formmethod="post"
+                        formaction="{{ url_for('cc_review_toggle_vat_invoice', line_id=line.id) }}"
+                        title="{{ vat_label }}">
+                    <i class="bi {% if line.vat_invoice_required %}bi-file-earmark-check-fill{% else %}bi-file-earmark-plus{% endif %}"></i>
+                    <span class="visually-hidden">{{ vat_label }}</span>
+                </button>
+                <a class="btn btn-sm btn-primary cc-review-open"
+                   href="{{ url_for('cc_card', card_id=line.card_id, statement_id=line.statement_id) }}"
+                   data-bs-toggle="offcanvas" data-bs-target="#ccReviewLine{{ line.id }}"
+                   aria-controls="ccReviewLine{{ line.id }}">
+                    Review <i class="bi bi-chevron-right ms-1"></i>
+                </a>
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+    {{ list_pager(pager) }}
+</form>
+
+{# Filled by static/cc-review.js at workspace widths only; it stays out of the
+   queue's <form> because the panel brings its own action forms. #}
+<aside class="cc-review-stage" data-cc-stage aria-label="Transaction under review" hidden>
+    <p class="cc-stage-hint">Choose a transaction to read its evidence here.</p>
+</aside>
+</div>
+
+{# One shell per row, not one rendered drawer per row. Bootstrap still opens
+   these declaratively (data-bs-toggle on the row's Review control), and
+   static/cc-review.js fills the shell from cc_review_line_panel the first time it
+   is opened. Rendering all of them inline was ~90 elements and three <form>s per
+   row on a no-store page, for a panel that is read one row at a time. Without
+   JavaScript an offcanvas never opens at all, so the row's Review link still goes
+   straight to the card month — exactly what it did before. #}
+{% for line in rows %}
+<aside class="offcanvas offcanvas-end cc-review-drawer" tabindex="-1"
+       id="ccReviewLine{{ line.id }}" aria-labelledby="ccReviewLineTitle{{ line.id }}"
+       data-cc-drawer-url="{{ line.panel_url }}"
+       data-cc-drawer-fallback="{{ url_for('cc_card', card_id=line.card_id, statement_id=line.statement_id) }}">
+    <div class="offcanvas-header">
+        <h2 class="offcanvas-title h5 mb-0" id="ccReviewLineTitle{{ line.id }}">{{ line.reference }}</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close review"></button>
+    </div>
+    <div class="offcanvas-body" data-cc-drawer-body>
+        <p class="cc-drawer-loading">Loading transaction…</p>
+    </div>
+</aside>
+{% endfor %}
+{% else %}
+<div class="cc-review-empty">
+    <i class="bi bi-check2-circle"></i>
+    <h2 class="h5">Nothing matches these filters</h2>
+    <p class="text-muted">Try another month, status or card selection.</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='cc-review.js') }}" defer></script>
+{% endblock %}

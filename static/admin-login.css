@@ -1,0 +1,24 @@
+    body { background: var(--bg-base, #0f1115); min-height:100vh; display:flex; align-items:center; justify-content:center; }
+    .login-card { width:100%; max-width:400px; padding:32px 28px; border-radius:16px;
+        background:var(--bg-elevated,#1a1d24); border:1px solid var(--border,#2a2e37); margin:20px; }
+    .login-card .icon { width:52px;height:52px;border-radius:13px;display:flex;align-items:center;
+        justify-content:center;font-size:25px;background:rgba(107,92,168,.16);color:#534877;margin-bottom:18px; }
+    .login-card h1 { font-size:19px;font-weight:700;color:var(--text-primary,#f3f4f6);margin:0 0 4px; }
+    .login-card .sub { font-size:13px;color:var(--text-secondary,#9ca3af);margin:0 0 22px; }
+    .login-card label { font-size:12px;font-weight:600;color:var(--text-secondary,#9ca3af);display:block;margin-bottom:6px;
+        text-transform:uppercase;letter-spacing:.04em; }
+    .login-card input { width:100%;min-height:44px;padding:12px 14px;border-radius:10px;border:1px solid var(--border,#2a2e37);
+        background:var(--bg-base,#0f1115);color:var(--text-primary,#f3f4f6);margin-bottom:16px;font-size:15px;
+        transition:border-color .15s; }
+    .login-card input:focus { outline:2px solid #3a5a8a;outline-offset:2px;border-color:var(--accent,#534877); }
+    .login-btn { width:100%;min-height:44px;padding:12px;border:none;border-radius:10px;background:var(--accent,#534877);
+        color:#fff;font-weight:600;font-size:14px;cursor:pointer;transition:filter .15s; }
+    .login-btn:hover { filter:brightness(1.08); }
+    .back { display:flex;align-items:center;justify-content:center;min-height:44px;text-align:center;margin-top:10px;font-size:13px;color:var(--text-secondary,#9ca3af);text-decoration:none;
+        transition:color .15s; }
+    .back:hover { color:var(--text-primary,#f3f4f6); }
+    .flash { font-size:13px;padding:10px 13px;border-radius:9px;margin-bottom:16px; }
+    .flash.danger { background:rgba(168,71,47,.14);color:#823721; }
+    .flash.success { background:rgba(47,125,112,.14);color:#235e54; }
+    .flash.info { background:rgba(90,116,158,.14);color:#3a5a8a; }
+    @media (max-width:560px) { .login-card input { font-size:16px; } }

@@ -1,0 +1,66 @@
+    /* Quiet-luxury login: the NORTHWIND seal on a soft tonal wash plus a layer of
+       grain so the cream is never flat. The grain is a single inline SVG. */
+    body { min-height:100vh; display:flex; align-items:center; justify-content:center;
+        background:radial-gradient(130% 95% at 50% -12%, #faf8f4 0%, #efeae4 50%, #e3ddd3 100%); }
+    body::before { content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+        opacity:.13; mix-blend-mode:multiply;
+        background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+
+    .entry { position:relative; z-index:1; width:100%; max-width:362px; padding:40px 22px; }
+
+    .brand { text-align:center; margin-bottom:26px; }
+    .brand .mark { width:54px;height:54px;border-radius:16px;display:none;align-items:center;
+    justify-content:center;background:var(--accent,#1c1c1c);color:#fff;font-size:24px;
+    box-shadow:0 6px 18px rgba(28,28,28,.18); }
+.brand .mark.is-visible { display:inline-flex; }
+    .brand p { font-size:11px;color:#9a948c;margin:14px 0 0;letter-spacing:.22em;text-transform:uppercase; }
+
+    .card { background:#fff; border-radius:18px; padding:30px 28px 24px;
+        box-shadow:0 1px 2px rgba(28,28,28,.04), 0 14px 40px -12px rgba(28,28,28,.16);
+        border:0.5px solid rgba(28,28,28,0.05); }
+    .card h1 { font-size:17px; font-weight:600; color:#1c1c1c; margin:0 0 2px; letter-spacing:-.01em; }
+    .card .lead { font-size:12.5px; color:#9a948c; margin:0 0 22px; }
+
+    label { font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#a8a39b;
+        display:block;margin:0 0 6px; }
+    input { width:100%;min-height:44px;padding:11px 13px;border-radius:11px;border:1px solid #e8e3db;
+        background:#fbfaf9;color:#1c1c1c;margin-bottom:16px;font-size:14.5px;transition:border-color .15s,box-shadow .15s,background .15s; }
+    input::placeholder { color:#c2bcb2; }
+    input:focus { outline:none;border-color:#1c1c1c;background:#fff;box-shadow:0 0 0 3px rgba(28,28,28,.06); }
+    .login-btn { width:100%;min-height:44px;padding:13px;border:none;border-radius:12px;background:#1c1c1c;
+        color:#fff;font-weight:500;font-size:14px;cursor:pointer;display:flex;align-items:center;
+        justify-content:center;gap:8px;margin-top:4px;transition:filter .15s,transform .05s; }
+    .login-btn:hover { filter:brightness(1.18); }
+    .login-btn:active { transform:translateY(1px); }
+    .hint { font-size:11.5px;color:#b3aea6;text-align:center;margin:18px 0 0;padding-top:16px;
+        border-top:0.5px solid rgba(28,28,28,0.07);line-height:1.6; }
+    .flash { font-size:13px;padding:10px 13px;border-radius:10px;margin-bottom:16px; }
+    .flash.danger { background:rgba(168,71,47,.10);color:#823721; }
+    .flash.success { background:rgba(47,109,58,.10);color:#2f5a37; }
+    .flash.info { background:rgba(28,28,28,.05);color:#615b5c; }
+    .flash.warning { background:rgba(176,106,44,.12);color:#6b3e18; }
+
+    .foot { text-align:center;margin-top:26px;font-size:10.5px;color:#b9b3aa;letter-spacing:.06em; }
+    @media (max-width:560px) { input { font-size:16px; } }
+
+    /* ── Demo role picker ──────────────────────────────────────────────────
+       Only rendered when NW_DEMO_MODE=1. Each entry is its own form posting the
+       ordinary sign-in fields, so the buttons stack as a plain list and need no
+       JavaScript. */
+    .demo { margin-top:18px; }
+    .demo-lead { font-size:11px;color:#9a948c;margin:0 0 12px;text-align:center;
+        letter-spacing:.02em;line-height:1.6; }
+    .demo-role { margin:0 0 8px; }
+    .demo-role button { width:100%;text-align:left;cursor:pointer;display:block;
+        padding:12px 14px;border-radius:12px;border:0.5px solid rgba(28,28,28,.08);
+        background:rgba(255,255,255,.72);color:#1c1c1c;font:inherit;
+        transition:border-color .15s,background .15s,transform .05s; }
+    .demo-role button:hover { background:#fff;border-color:rgba(28,28,28,.22); }
+    .demo-role button:active { transform:translateY(1px); }
+    .demo-role button:focus-visible { outline:none;border-color:#1c1c1c;
+        box-shadow:0 0 0 3px rgba(28,28,28,.08); }
+    .demo-role-label { display:block;font-size:13.5px;font-weight:600;letter-spacing:-.01em; }
+    .demo-role-blurb { display:block;font-size:11.5px;color:#9a948c;margin-top:3px;line-height:1.5; }
+    .demo-role-who { display:block;font-size:10px;color:#b3aea6;margin-top:5px;
+        letter-spacing:.09em;text-transform:uppercase; }
+    .demo-note { font-size:10.5px;color:#b3aea6;text-align:center;margin:14px 0 0;line-height:1.6; }

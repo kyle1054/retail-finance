@@ -1,0 +1,1492 @@
+{
+  "layby": {
+    "1": {
+      "basket": 1885.0,
+      "disc": 30.0,
+      "monthly": 659.75,
+      "paid": 0,
+      "term": 2,
+      "total": 1319.5
+    },
+    "10": {
+      "basket": 640.0,
+      "disc": 40.0,
+      "monthly": 76.8,
+      "paid": 0,
+      "term": 5,
+      "total": 384.0
+    },
+    "11": {
+      "basket": 2780.0,
+      "disc": 40.0,
+      "monthly": 278.0,
+      "paid": 6,
+      "term": 6,
+      "total": 1668.0
+    },
+    "12": {
+      "basket": 785.0,
+      "disc": 40.0,
+      "monthly": 67.29,
+      "paid": 1,
+      "term": 7,
+      "total": 471.0
+    },
+    "13": {
+      "basket": 2585.0,
+      "disc": 30.0,
+      "monthly": 904.75,
+      "paid": 0,
+      "term": 2,
+      "total": 1809.5
+    },
+    "14": {
+      "basket": 1135.0,
+      "disc": 40.0,
+      "monthly": 227.0,
+      "paid": 3,
+      "term": 3,
+      "total": 681.0
+    },
+    "15": {
+      "basket": 2540.0,
+      "disc": 40.0,
+      "monthly": 381.0,
+      "paid": 2,
+      "term": 4,
+      "total": 1524.0
+    },
+    "16": {
+      "basket": 1080.0,
+      "disc": 40.0,
+      "monthly": 129.6,
+      "paid": 0,
+      "term": 5,
+      "total": 648.0
+    },
+    "17": {
+      "basket": 1885.0,
+      "disc": 30.0,
+      "monthly": 219.92,
+      "paid": 6,
+      "term": 6,
+      "total": 1319.5
+    },
+    "18": {
+      "basket": 640.0,
+      "disc": 40.0,
+      "monthly": 54.86,
+      "paid": 3,
+      "term": 7,
+      "total": 384.0
+    },
+    "19": {
+      "basket": 2780.0,
+      "disc": 40.0,
+      "monthly": 834.0,
+      "paid": 0,
+      "term": 2,
+      "total": 1668.0
+    },
+    "2": {
+      "basket": 640.0,
+      "disc": 40.0,
+      "monthly": 128.0,
+      "paid": 3,
+      "term": 3,
+      "total": 384.0
+    },
+    "20": {
+      "basket": 785.0,
+      "disc": 40.0,
+      "monthly": 157.0,
+      "paid": 3,
+      "term": 3,
+      "total": 471.0
+    },
+    "21": {
+      "basket": 2585.0,
+      "disc": 30.0,
+      "monthly": 452.38,
+      "paid": 4,
+      "term": 4,
+      "total": 1809.5
+    },
+    "22": {
+      "basket": 1135.0,
+      "disc": 40.0,
+      "monthly": 136.2,
+      "paid": 0,
+      "term": 5,
+      "total": 681.0
+    },
+    "23": {
+      "basket": 2540.0,
+      "disc": 40.0,
+      "monthly": 254.0,
+      "paid": 6,
+      "term": 6,
+      "total": 1524.0
+    },
+    "24": {
+      "basket": 1080.0,
+      "disc": 40.0,
+      "monthly": 67.55,
+      "paid": 5,
+      "term": 7,
+      "total": 648.0
+    },
+    "25": {
+      "basket": 1885.0,
+      "disc": 30.0,
+      "monthly": 659.75,
+      "paid": 0,
+      "term": 2,
+      "total": 1319.5
+    },
+    "26": {
+      "basket": 640.0,
+      "disc": 40.0,
+      "monthly": 128.0,
+      "paid": 0,
+      "term": 3,
+      "total": 384.0
+    },
+    "27": {
+      "basket": 2780.0,
+      "disc": 40.0,
+      "monthly": 417.0,
+      "paid": 4,
+      "term": 4,
+      "total": 1668.0
+    },
+    "28": {
+      "basket": 785.0,
+      "disc": 40.0,
+      "monthly": 94.2,
+      "paid": 0,
+      "term": 5,
+      "total": 471.0
+    },
+    "29": {
+      "basket": 2585.0,
+      "disc": 30.0,
+      "monthly": 301.59,
+      "paid": 0,
+      "term": 6,
+      "total": 1809.5
+    },
+    "3": {
+      "basket": 2780.0,
+      "disc": 40.0,
+      "monthly": 417.0,
+      "paid": 0,
+      "term": 4,
+      "total": 1668.0
+    },
+    "30": {
+      "basket": 1135.0,
+      "disc": 40.0,
+      "monthly": 97.29,
+      "paid": 7,
+      "term": 7,
+      "total": 681.0
+    },
+    "31": {
+      "basket": 2540.0,
+      "disc": 40.0,
+      "monthly": 762.0,
+      "paid": 0,
+      "term": 2,
+      "total": 1524.0
+    },
+    "32": {
+      "basket": 1080.0,
+      "disc": 40.0,
+      "monthly": 216.0,
+      "paid": 0,
+      "term": 3,
+      "total": 648.0
+    },
+    "33": {
+      "basket": 1885.0,
+      "disc": 30.0,
+      "monthly": 329.88,
+      "paid": 4,
+      "term": 4,
+      "total": 1319.5
+    },
+    "34": {
+      "basket": 640.0,
+      "disc": 40.0,
+      "monthly": 76.8,
+      "paid": 1,
+      "term": 5,
+      "total": 384.0
+    },
+    "35": {
+      "basket": 2780.0,
+      "disc": 40.0,
+      "monthly": 278.0,
+      "paid": 0,
+      "term": 6,
+      "total": 1668.0
+    },
+    "36": {
+      "basket": 785.0,
+      "disc": 40.0,
+      "monthly": 67.29,
+      "paid": 7,
+      "term": 7,
+      "total": 471.0
+    },
+    "37": {
+      "basket": 2585.0,
+      "disc": 30.0,
+      "monthly": 904.75,
+      "paid": 2,
+      "term": 2,
+      "total": 1809.5
+    },
+    "38": {
+      "basket": 1135.0,
+      "disc": 40.0,
+      "monthly": 227.0,
+      "paid": 0,
+      "term": 3,
+      "total": 681.0
+    },
+    "39": {
+      "basket": 2540.0,
+      "disc": 40.0,
+      "monthly": 381.0,
+      "paid": 4,
+      "term": 4,
+      "total": 1524.0
+    },
+    "4": {
+      "basket": 785.0,
+      "disc": 40.0,
+      "monthly": 94.2,
+      "paid": 0,
+      "term": 5,
+      "total": 471.0
+    },
+    "40": {
+      "basket": 1080.0,
+      "disc": 40.0,
+      "monthly": 129.6,
+      "paid": 3,
+      "term": 5,
+      "total": 648.0
+    },
+    "41": {
+      "basket": 1885.0,
+      "disc": 30.0,
+      "monthly": 219.92,
+      "paid": 0,
+      "term": 6,
+      "total": 1319.5
+    },
+    "42": {
+      "basket": 640.0,
+      "disc": 40.0,
+      "monthly": 54.86,
+      "paid": 7,
+      "term": 7,
+      "total": 384.0
+    },
+    "43": {
+      "basket": 2780.0,
+      "disc": 40.0,
+      "monthly": 834.0,
+      "paid": 2,
+      "term": 2,
+      "total": 1668.0
+    },
+    "44": {
+      "basket": 785.0,
+      "disc": 40.0,
+      "monthly": 157.0,
+      "paid": 0,
+      "term": 3,
+      "total": 471.0
+    },
+    "45": {
+      "basket": 2585.0,
+      "disc": 30.0,
+      "monthly": 452.38,
+      "paid": 4,
+      "term": 4,
+      "total": 1809.5
+    },
+    "46": {
+      "basket": 1135.0,
+      "disc": 40.0,
+      "monthly": 136.2,
+      "paid": 5,
+      "term": 5,
+      "total": 681.0
+    },
+    "47": {
+      "basket": 2540.0,
+      "disc": 40.0,
+      "monthly": 245.67,
+      "paid": 0,
+      "term": 6,
+      "total": 1524.0
+    },
+    "48": {
+      "basket": 1080.0,
+      "disc": 40.0,
+      "monthly": 92.58,
+      "paid": 0,
+      "term": 7,
+      "total": 648.0
+    },
+    "49": {
+      "basket": 1885.0,
+      "disc": 30.0,
+      "monthly": 659.75,
+      "paid": 2,
+      "term": 2,
+      "total": 1319.5
+    },
+    "5": {
+      "basket": 2585.0,
+      "disc": 30.0,
+      "monthly": 301.59,
+      "paid": 6,
+      "term": 6,
+      "total": 1809.5
+    },
+    "50": {
+      "basket": 640.0,
+      "disc": 40.0,
+      "monthly": 128.0,
+      "paid": 0,
+      "term": 3,
+      "total": 384.0
+    },
+    "51": {
+      "basket": 2780.0,
+      "disc": 40.0,
+      "monthly": 417.0,
+      "paid": 0,
+      "term": 4,
+      "total": 1668.0
+    },
+    "52": {
+      "basket": 785.0,
+      "disc": 40.0,
+      "monthly": 94.2,
+      "paid": 5,
+      "term": 5,
+      "total": 471.0
+    },
+    "53": {
+      "basket": 2585.0,
+      "disc": 30.0,
+      "monthly": 301.59,
+      "paid": 0,
+      "term": 6,
+      "total": 1809.5
+    },
+    "54": {
+      "basket": 1135.0,
+      "disc": 40.0,
+      "monthly": 97.29,
+      "paid": 0,
+      "term": 7,
+      "total": 681.0
+    },
+    "55": {
+      "basket": 2540.0,
+      "disc": 40.0,
+      "monthly": 762.0,
+      "paid": 2,
+      "term": 2,
+      "total": 1524.0
+    },
+    "56": {
+      "basket": 1080.0,
+      "disc": 40.0,
+      "monthly": 216.0,
+      "paid": 1,
+      "term": 3,
+      "total": 648.0
+    },
+    "57": {
+      "basket": 1885.0,
+      "disc": 30.0,
+      "monthly": 329.88,
+      "paid": 0,
+      "term": 4,
+      "total": 1319.5
+    },
+    "58": {
+      "basket": 640.0,
+      "disc": 40.0,
+      "monthly": 76.8,
+      "paid": 5,
+      "term": 5,
+      "total": 384.0
+    },
+    "59": {
+      "basket": 2780.0,
+      "disc": 40.0,
+      "monthly": 278.0,
+      "paid": 2,
+      "term": 6,
+      "total": 1668.0
+    },
+    "6": {
+      "basket": 1135.0,
+      "disc": 40.0,
+      "monthly": 97.29,
+      "paid": 0,
+      "term": 7,
+      "total": 681.0
+    },
+    "60": {
+      "basket": 785.0,
+      "disc": 40.0,
+      "monthly": 67.29,
+      "paid": 0,
+      "term": 7,
+      "total": 471.0
+    },
+    "61": {
+      "basket": 2585.0,
+      "disc": 30.0,
+      "monthly": 904.75,
+      "paid": 2,
+      "term": 2,
+      "total": 1809.5
+    },
+    "62": {
+      "basket": 1135.0,
+      "disc": 40.0,
+      "monthly": 227.0,
+      "paid": 3,
+      "term": 3,
+      "total": 681.0
+    },
+    "63": {
+      "basket": 2540.0,
+      "disc": 40.0,
+      "monthly": 381.0,
+      "paid": 0,
+      "term": 4,
+      "total": 1524.0
+    },
+    "64": {
+      "basket": 1080.0,
+      "disc": 40.0,
+      "monthly": 129.6,
+      "paid": 5,
+      "term": 5,
+      "total": 648.0
+    },
+    "7": {
+      "basket": 2540.0,
+      "disc": 40.0,
+      "monthly": 762.0,
+      "paid": 0,
+      "term": 2,
+      "total": 1524.0
+    },
+    "8": {
+      "basket": 1080.0,
+      "disc": 40.0,
+      "monthly": 216.0,
+      "paid": 3,
+      "term": 3,
+      "total": 648.0
+    },
+    "9": {
+      "basket": 1885.0,
+      "disc": 30.0,
+      "monthly": 329.88,
+      "paid": 0,
+      "term": 4,
+      "total": 1319.5
+    }
+  },
+  "undercharge": {
+    "1": {
+      "method": "full",
+      "paid": 0,
+      "split": 1,
+      "total": 80.0
+    },
+    "10": {
+      "method": "full",
+      "paid": 1,
+      "split": 1,
+      "total": 467.0
+    },
+    "11": {
+      "method": "split",
+      "paid": 2,
+      "split": 4,
+      "total": 510.0
+    },
+    "12": {
+      "method": "split",
+      "paid": 0,
+      "split": 5,
+      "total": 553.0
+    },
+    "13": {
+      "method": "full",
+      "paid": 1,
+      "split": 1,
+      "total": 596.0
+    },
+    "14": {
+      "method": "split",
+      "paid": 3,
+      "split": 3,
+      "total": 639.0
+    },
+    "15": {
+      "method": "split",
+      "paid": 2,
+      "split": 4,
+      "total": 682.0
+    },
+    "16": {
+      "method": "full",
+      "paid": 0,
+      "split": 1,
+      "total": 80.0
+    },
+    "17": {
+      "method": "split",
+      "paid": 2,
+      "split": 2,
+      "total": 123.0
+    },
+    "18": {
+      "method": "split",
+      "paid": 3,
+      "split": 3,
+      "total": 166.0
+    },
+    "19": {
+      "method": "full",
+      "paid": 1,
+      "split": 1,
+      "total": 209.0
+    },
+    "2": {
+      "method": "split",
+      "paid": 3,
+      "split": 3,
+      "total": 123.0
+    },
+    "20": {
+      "method": "split",
+      "paid": 0,
+      "split": 5,
+      "total": 252.0
+    },
+    "21": {
+      "method": "split",
+      "paid": 2,
+      "split": 2,
+      "total": 295.0
+    },
+    "22": {
+      "method": "full",
+      "paid": 1,
+      "split": 1,
+      "total": 338.0
+    },
+    "23": {
+      "method": "split",
+      "paid": 2,
+      "split": 4,
+      "total": 381.0
+    },
+    "24": {
+      "method": "split",
+      "paid": 0,
+      "split": 5,
+      "total": 424.0
+    },
+    "25": {
+      "method": "full",
+      "paid": 1,
+      "split": 1,
+      "total": 467.0
+    },
+    "26": {
+      "method": "split",
+      "paid": 3,
+      "split": 3,
+      "total": 510.0
+    },
+    "27": {
+      "method": "split",
+      "paid": 2,
+      "split": 4,
+      "total": 553.0
+    },
+    "28": {
+      "method": "full",
+      "paid": 0,
+      "split": 1,
+      "total": 596.0
+    },
+    "29": {
+      "method": "split",
+      "paid": 2,
+      "split": 2,
+      "total": 639.0
+    },
+    "3": {
+      "method": "split",
+      "paid": 2,
+      "split": 4,
+      "total": 166.0
+    },
+    "30": {
+      "method": "split",
+      "paid": 3,
+      "split": 3,
+      "total": 682.0
+    },
+    "31": {
+      "method": "full",
+      "paid": 1,
+      "split": 1,
+      "total": 80.0
+    },
+    "32": {
+      "method": "split",
+      "paid": 0,
+      "split": 5,
+      "total": 123.0
+    },
+    "33": {
+      "method": "split",
+      "paid": 2,
+      "split": 2,
+      "total": 166.0
+    },
+    "34": {
+      "method": "full",
+      "paid": 1,
+      "split": 1,
+      "total": 209.0
+    },
+    "35": {
+      "method": "split",
+      "paid": 2,
+      "split": 4,
+      "total": 252.0
+    },
+    "36": {
+      "method": "split",
+      "paid": 0,
+      "split": 5,
+      "total": 295.0
+    },
+    "37": {
+      "method": "full",
+      "paid": 0,
+      "split": 1,
+      "total": 338.0
+    },
+    "38": {
+      "method": "split",
+      "paid": 3,
+      "split": 3,
+      "total": 381.0
+    },
+    "39": {
+      "method": "split",
+      "paid": 2,
+      "split": 4,
+      "total": 424.0
+    },
+    "4": {
+      "method": "full",
+      "paid": 0,
+      "split": 1,
+      "total": 209.0
+    },
+    "40": {
+      "method": "full",
+      "paid": 0,
+      "split": 1,
+      "total": 467.0
+    },
+    "41": {
+      "method": "split",
+      "paid": 2,
+      "split": 2,
+      "total": 510.0
+    },
+    "42": {
+      "method": "split",
+      "paid": 3,
+      "split": 3,
+      "total": 553.0
+    },
+    "43": {
+      "method": "full",
+      "paid": 1,
+      "split": 1,
+      "total": 596.0
+    },
+    "44": {
+      "method": "split",
+      "paid": 0,
+      "split": 5,
+      "total": 639.0
+    },
+    "45": {
+      "method": "split",
+      "paid": 2,
+      "split": 2,
+      "total": 682.0
+    },
+    "46": {
+      "method": "full",
+      "paid": 1,
+      "split": 1,
+      "total": 80.0
+    },
+    "47": {
+      "method": "split",
+      "paid": 2,
+      "split": 4,
+      "total": 123.0
+    },
+    "48": {
+      "method": "split",
+      "paid": 0,
+      "split": 5,
+      "total": 166.0
+    },
+    "49": {
+      "method": "full",
+      "paid": 1,
+      "split": 1,
+      "total": 209.0
+    },
+    "5": {
+      "method": "split",
+      "paid": 2,
+      "split": 2,
+      "total": 252.0
+    },
+    "50": {
+      "method": "split",
+      "paid": 3,
+      "split": 3,
+      "total": 252.0
+    },
+    "51": {
+      "method": "split",
+      "paid": 2,
+      "split": 4,
+      "total": 295.0
+    },
+    "52": {
+      "method": "full",
+      "paid": 0,
+      "split": 1,
+      "total": 338.0
+    },
+    "53": {
+      "method": "split",
+      "paid": 2,
+      "split": 2,
+      "total": 381.0
+    },
+    "54": {
+      "method": "split",
+      "paid": 3,
+      "split": 3,
+      "total": 424.0
+    },
+    "55": {
+      "method": "full",
+      "paid": 1,
+      "split": 1,
+      "total": 467.0
+    },
+    "56": {
+      "method": "split",
+      "paid": 0,
+      "split": 5,
+      "total": 510.0
+    },
+    "57": {
+      "method": "split",
+      "paid": 2,
+      "split": 2,
+      "total": 553.0
+    },
+    "58": {
+      "method": "full",
+      "paid": 1,
+      "split": 1,
+      "total": 596.0
+    },
+    "59": {
+      "method": "split",
+      "paid": 2,
+      "split": 4,
+      "total": 639.0
+    },
+    "6": {
+      "method": "split",
+      "paid": 3,
+      "split": 3,
+      "total": 295.0
+    },
+    "60": {
+      "method": "split",
+      "paid": 0,
+      "split": 5,
+      "total": 682.0
+    },
+    "61": {
+      "method": "full",
+      "paid": 1,
+      "split": 1,
+      "total": 80.0
+    },
+    "62": {
+      "method": "split",
+      "paid": 3,
+      "split": 3,
+      "total": 123.0
+    },
+    "63": {
+      "method": "split",
+      "paid": 2,
+      "split": 4,
+      "total": 166.0
+    },
+    "64": {
+      "method": "full",
+      "paid": 0,
+      "split": 1,
+      "total": 209.0
+    },
+    "65": {
+      "method": "split",
+      "paid": 2,
+      "split": 2,
+      "total": 252.0
+    },
+    "66": {
+      "method": "split",
+      "paid": 3,
+      "split": 3,
+      "total": 295.0
+    },
+    "67": {
+      "method": "full",
+      "paid": 0,
+      "split": 1,
+      "total": 125.0
+    },
+    "68": {
+      "method": "full",
+      "paid": 0,
+      "split": 1,
+      "total": 158.0
+    },
+    "69": {
+      "method": "full",
+      "paid": 0,
+      "split": 1,
+      "total": 191.0
+    },
+    "7": {
+      "method": "full",
+      "paid": 1,
+      "split": 1,
+      "total": 338.0
+    },
+    "70": {
+      "method": "full",
+      "paid": 0,
+      "split": 1,
+      "total": 224.0
+    },
+    "71": {
+      "method": "full",
+      "paid": 0,
+      "split": 1,
+      "total": 257.0
+    },
+    "8": {
+      "method": "split",
+      "paid": 0,
+      "split": 5,
+      "total": 381.0
+    },
+    "9": {
+      "method": "split",
+      "paid": 2,
+      "split": 2,
+      "total": 424.0
+    }
+  },
+  "uniform": {
+    "1": {
+      "monthly": 150.0,
+      "paid": 0,
+      "term": 3,
+      "total": 450.0
+    },
+    "10": {
+      "monthly": 375.0,
+      "paid": 0,
+      "term": 12,
+      "total": 4500.0
+    },
+    "11": {
+      "monthly": 400.0,
+      "paid": 3,
+      "term": 3,
+      "total": 1162.5
+    },
+    "12": {
+      "monthly": 425.0,
+      "paid": 4,
+      "term": 4,
+      "total": 1700.0
+    },
+    "13": {
+      "monthly": 150.0,
+      "paid": 4,
+      "term": 5,
+      "total": 750.0
+    },
+    "14": {
+      "monthly": 175.0,
+      "paid": 0,
+      "term": 6,
+      "total": 1050.0
+    },
+    "15": {
+      "monthly": 200.0,
+      "paid": 0,
+      "term": 7,
+      "total": 1400.0
+    },
+    "16": {
+      "monthly": 225.0,
+      "paid": 8,
+      "term": 8,
+      "total": 1800.0
+    },
+    "17": {
+      "monthly": 250.0,
+      "paid": 9,
+      "term": 9,
+      "total": 2250.0
+    },
+    "18": {
+      "monthly": 275.0,
+      "paid": 4,
+      "term": 10,
+      "total": 2712.5
+    },
+    "19": {
+      "monthly": 300.0,
+      "paid": 0,
+      "term": 11,
+      "total": 3300.0
+    },
+    "2": {
+      "monthly": 175.0,
+      "paid": 0,
+      "term": 4,
+      "total": 700.0
+    },
+    "20": {
+      "monthly": 325.0,
+      "paid": 0,
+      "term": 12,
+      "total": 3900.0
+    },
+    "21": {
+      "monthly": 350.0,
+      "paid": 3,
+      "term": 3,
+      "total": 1050.0
+    },
+    "22": {
+      "monthly": 375.0,
+      "paid": 4,
+      "term": 4,
+      "total": 1500.0
+    },
+    "23": {
+      "monthly": 400.0,
+      "paid": 4,
+      "term": 5,
+      "total": 2000.0
+    },
+    "24": {
+      "monthly": 416.67,
+      "paid": 0,
+      "term": 6,
+      "total": 2550.0
+    },
+    "25": {
+      "monthly": 150.0,
+      "paid": 0,
+      "term": 7,
+      "total": 1012.5
+    },
+    "26": {
+      "monthly": 175.0,
+      "paid": 8,
+      "term": 8,
+      "total": 1400.0
+    },
+    "27": {
+      "monthly": 200.0,
+      "paid": 9,
+      "term": 9,
+      "total": 1800.0
+    },
+    "28": {
+      "monthly": 225.0,
+      "paid": 4,
+      "term": 10,
+      "total": 2250.0
+    },
+    "29": {
+      "monthly": 250.0,
+      "paid": 0,
+      "term": 11,
+      "total": 2750.0
+    },
+    "3": {
+      "monthly": 200.0,
+      "paid": 0,
+      "term": 5,
+      "total": 1000.0
+    },
+    "30": {
+      "monthly": 275.0,
+      "paid": 0,
+      "term": 12,
+      "total": 3300.0
+    },
+    "31": {
+      "monthly": 300.0,
+      "paid": 3,
+      "term": 3,
+      "total": 900.0
+    },
+    "32": {
+      "monthly": 325.0,
+      "paid": 4,
+      "term": 4,
+      "total": 1262.5
+    },
+    "33": {
+      "monthly": 350.0,
+      "paid": 4,
+      "term": 5,
+      "total": 1750.0
+    },
+    "34": {
+      "monthly": 375.0,
+      "paid": 0,
+      "term": 6,
+      "total": 2250.0
+    },
+    "35": {
+      "monthly": 400.0,
+      "paid": 0,
+      "term": 7,
+      "total": 2800.0
+    },
+    "36": {
+      "monthly": 425.0,
+      "paid": 8,
+      "term": 8,
+      "total": 3400.0
+    },
+    "37": {
+      "monthly": 150.0,
+      "paid": 9,
+      "term": 9,
+      "total": 1350.0
+    },
+    "38": {
+      "monthly": 175.0,
+      "paid": 4,
+      "term": 10,
+      "total": 1750.0
+    },
+    "39": {
+      "monthly": 200.0,
+      "paid": 0,
+      "term": 11,
+      "total": 2162.5
+    },
+    "4": {
+      "monthly": 225.0,
+      "paid": 0,
+      "term": 6,
+      "total": 1312.5
+    },
+    "40": {
+      "monthly": 225.0,
+      "paid": 0,
+      "term": 12,
+      "total": 2700.0
+    },
+    "41": {
+      "monthly": 250.0,
+      "paid": 3,
+      "term": 3,
+      "total": 750.0
+    },
+    "42": {
+      "monthly": 275.0,
+      "paid": 4,
+      "term": 4,
+      "total": 1100.0
+    },
+    "43": {
+      "monthly": 300.0,
+      "paid": 4,
+      "term": 5,
+      "total": 1500.0
+    },
+    "44": {
+      "monthly": 325.0,
+      "paid": 0,
+      "term": 6,
+      "total": 1950.0
+    },
+    "45": {
+      "monthly": 350.0,
+      "paid": 0,
+      "term": 7,
+      "total": 2450.0
+    },
+    "46": {
+      "monthly": 375.0,
+      "paid": 8,
+      "term": 8,
+      "total": 2962.5
+    },
+    "47": {
+      "monthly": 400.0,
+      "paid": 9,
+      "term": 9,
+      "total": 3600.0
+    },
+    "48": {
+      "monthly": 425.0,
+      "paid": 4,
+      "term": 10,
+      "total": 4250.0
+    },
+    "49": {
+      "monthly": 150.0,
+      "paid": 0,
+      "term": 11,
+      "total": 1650.0
+    },
+    "5": {
+      "monthly": 250.0,
+      "paid": 0,
+      "term": 7,
+      "total": 1750.0
+    },
+    "50": {
+      "monthly": 175.0,
+      "paid": 0,
+      "term": 12,
+      "total": 2100.0
+    },
+    "51": {
+      "monthly": 200.0,
+      "paid": 3,
+      "term": 3,
+      "total": 600.0
+    },
+    "52": {
+      "monthly": 225.0,
+      "paid": 4,
+      "term": 4,
+      "total": 900.0
+    },
+    "53": {
+      "monthly": 250.0,
+      "paid": 4,
+      "term": 5,
+      "total": 1212.5
+    },
+    "54": {
+      "monthly": 275.0,
+      "paid": 0,
+      "term": 6,
+      "total": 1650.0
+    },
+    "55": {
+      "monthly": 300.0,
+      "paid": 0,
+      "term": 7,
+      "total": 2100.0
+    },
+    "56": {
+      "monthly": 325.0,
+      "paid": 8,
+      "term": 8,
+      "total": 2600.0
+    },
+    "57": {
+      "monthly": 350.0,
+      "paid": 9,
+      "term": 9,
+      "total": 3150.0
+    },
+    "58": {
+      "monthly": 375.0,
+      "paid": 4,
+      "term": 10,
+      "total": 3750.0
+    },
+    "59": {
+      "monthly": 400.0,
+      "paid": 0,
+      "term": 11,
+      "total": 4400.0
+    },
+    "6": {
+      "monthly": 275.0,
+      "paid": 8,
+      "term": 8,
+      "total": 2200.0
+    },
+    "60": {
+      "monthly": 425.0,
+      "paid": 0,
+      "term": 12,
+      "total": 5062.5
+    },
+    "61": {
+      "monthly": 150.0,
+      "paid": 3,
+      "term": 3,
+      "total": 450.0
+    },
+    "62": {
+      "monthly": 175.0,
+      "paid": 4,
+      "term": 4,
+      "total": 700.0
+    },
+    "63": {
+      "monthly": 200.0,
+      "paid": 4,
+      "term": 5,
+      "total": 1000.0
+    },
+    "64": {
+      "monthly": 225.0,
+      "paid": 0,
+      "term": 6,
+      "total": 1350.0
+    },
+    "65": {
+      "monthly": 250.0,
+      "paid": 0,
+      "term": 7,
+      "total": 1750.0
+    },
+    "66": {
+      "monthly": 275.0,
+      "paid": 8,
+      "term": 8,
+      "total": 2200.0
+    },
+    "67": {
+      "monthly": 300.0,
+      "paid": 9,
+      "term": 9,
+      "total": 2662.5
+    },
+    "68": {
+      "monthly": 325.0,
+      "paid": 4,
+      "term": 10,
+      "total": 3250.0
+    },
+    "69": {
+      "monthly": 350.0,
+      "paid": 0,
+      "term": 11,
+      "total": 3850.0
+    },
+    "7": {
+      "monthly": 300.0,
+      "paid": 9,
+      "term": 9,
+      "total": 2700.0
+    },
+    "70": {
+      "monthly": 370.83,
+      "paid": 0,
+      "term": 12,
+      "total": 4500.0
+    },
+    "71": {
+      "monthly": 400.0,
+      "paid": 3,
+      "term": 3,
+      "total": 1200.0
+    },
+    "72": {
+      "monthly": 425.0,
+      "paid": 4,
+      "term": 4,
+      "total": 1700.0
+    },
+    "73": {
+      "monthly": 150.0,
+      "paid": 4,
+      "term": 5,
+      "total": 750.0
+    },
+    "74": {
+      "monthly": 175.0,
+      "paid": 0,
+      "term": 6,
+      "total": 1012.5
+    },
+    "75": {
+      "monthly": 200.0,
+      "paid": 0,
+      "term": 7,
+      "total": 1400.0
+    },
+    "76": {
+      "monthly": 225.0,
+      "paid": 8,
+      "term": 8,
+      "total": 1800.0
+    },
+    "77": {
+      "monthly": 250.0,
+      "paid": 9,
+      "term": 9,
+      "total": 2250.0
+    },
+    "78": {
+      "monthly": 275.0,
+      "paid": 4,
+      "term": 10,
+      "total": 2750.0
+    },
+    "79": {
+      "monthly": 300.0,
+      "paid": 0,
+      "term": 11,
+      "total": 3300.0
+    },
+    "8": {
+      "monthly": 325.0,
+      "paid": 4,
+      "term": 10,
+      "total": 3250.0
+    },
+    "80": {
+      "monthly": 325.0,
+      "paid": 0,
+      "term": 12,
+      "total": 3900.0
+    },
+    "81": {
+      "monthly": 350.0,
+      "paid": 3,
+      "term": 3,
+      "total": 1012.5
+    },
+    "82": {
+      "monthly": 375.0,
+      "paid": 4,
+      "term": 4,
+      "total": 1500.0
+    },
+    "83": {
+      "monthly": 400.0,
+      "paid": 4,
+      "term": 5,
+      "total": 2000.0
+    },
+    "84": {
+      "monthly": 425.0,
+      "paid": 0,
+      "term": 6,
+      "total": 2550.0
+    },
+    "85": {
+      "monthly": 150.0,
+      "paid": 0,
+      "term": 7,
+      "total": 1050.0
+    },
+    "86": {
+      "monthly": 175.0,
+      "paid": 0,
+      "term": 8,
+      "total": 1400.0
+    },
+    "87": {
+      "monthly": 300.0,
+      "paid": 0,
+      "term": 20,
+      "total": 6000.0
+    },
+    "88": {
+      "monthly": 350.0,
+      "paid": 0,
+      "term": 18,
+      "total": 6300.0
+    },
+    "89": {
+      "monthly": 400.0,
+      "paid": 0,
+      "term": 16,
+      "total": 6400.0
+    },
+    "9": {
+      "monthly": 350.0,
+      "paid": 0,
+      "term": 11,
+      "total": 3850.0
+    },
+    "90": {
+      "monthly": 450.0,
+      "paid": 0,
+      "term": 14,
+      "total": 6300.0
+    },
+    "91": {
+      "monthly": 730.0,
+      "paid": 0,
+      "term": 3,
+      "total": 2190.0
+    }
+  }
+}

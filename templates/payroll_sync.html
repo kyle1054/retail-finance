@@ -1,0 +1,513 @@
+{% extends 'base.html' %}
+{% block title %}Payroll Sync — Northwind Deductions{% endblock %}
+{% block page_title %}Payroll Sync{% endblock %}
+
+{% block content %}
+
+{% if not preview %}
+<!-- ── Input Form ── -->
+<div class="row justify-content-center">
+    <div class="col-lg-7">
+        <div class="card shadow-sm border-0" style="border-radius:12px;">
+            <div class="card-header border-0 py-3" style="background:#f8fafc;border-radius:12px 12px 0 0;">
+                <i class="bi bi-arrow-repeat me-2 text-primary"></i><strong>Sync Retail Roster</strong>
+            </div>
+            <div class="card-body p-4">
+                <p style="color:#64748b;font-size:14px;line-height:1.6;">
+                    Provide the latest retail payroll roster either by uploading the Excel file or by pasting
+                    the rows. The app compares it against the current employee list and shows you any store
+                    moves, spelling differences, and missing staff on a confirm screen before making any changes.
+                </p>
+                <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:#1e40af;">
+                    <strong>Expected columns:</strong>
+                    <code>Surname, Firstname</code> &nbsp;·&nbsp; Store name &nbsp;·&nbsp; Job title
+                </div>
+
+                <!-- Tabs: Upload vs Paste -->
+                <ul class="nav nav-tabs mb-3" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="tab-upload-btn" data-bs-toggle="tab"
+                                data-bs-target="#tab-upload" type="button" role="tab">
+                            <i class="bi bi-upload me-1"></i>Upload file
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="tab-paste-btn" data-bs-toggle="tab"
+                                data-bs-target="#tab-paste" type="button" role="tab">
+                            <i class="bi bi-clipboard me-1"></i>Paste text
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+                    <!-- Upload -->
+                    <div class="tab-pane fade show active" id="tab-upload" role="tabpanel">
+                        <form method="post" action="{{ url_for('payroll_sync_preview') }}" enctype="multipart/form-data">
+                            <div class="mb-4">
+                                <label class="form-label fw-semibold" style="font-size:13px;">Select Excel file (.xlsx)</label>
+                                <input type="file" name="file" class="form-control" accept=".xlsx,.xls" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100 py-2" style="font-weight:600;border-radius:6px;">
+                                <i class="bi bi-search me-2"></i>Analyse Payroll
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Paste -->
+                    <div class="tab-pane fade" id="tab-paste" role="tabpanel">
+                        <form method="post" action="{{ url_for('payroll_sync_preview') }}">
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold" style="font-size:13px;">Paste roster rows</label>
+                                <textarea name="pasted" class="form-control" rows="10"
+                                          style="font-family:monospace;font-size:12px;white-space:pre;"
+                                          placeholder="Harkness, Amara Grace&#9;Riverbend&#9;Full-time Associate
+Ingleby, Verity&#9;Westgate&#9;Store Manager"></textarea>
+                                <small class="text-muted" style="font-size:12px;">
+                                    Copy the rows straight out of the payroll spreadsheet and paste here — columns
+                                    stay tab-separated. Blank or incomplete rows are ignored.
+                                </small>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100 py-2" style="font-weight:600;border-radius:6px;">
+                                <i class="bi bi-search me-2"></i>Analyse Payroll
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% else %}
+<!-- ── Preview ── -->
+<div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:8px 16px;font-size:13px;color:#1e40af;font-weight:500;">
+        <i class="bi bi-file-earmark-spreadsheet me-2 text-primary"></i>
+        Sheet detected: <strong>{{ detected_sheet }}</strong> &nbsp;·&nbsp; {{ payroll_count }} employees read
+    </div>
+    <a href="{{ url_for('payroll_sync') }}" class="btn btn-outline-secondary btn-sm" style="border-radius:6px;">
+        <i class="bi bi-arrow-left me-1"></i>Start over
+    </a>
+</div>
+
+<!-- Summary cards -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="stat-card" style="box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <div class="stat-icon bg-amber-soft"><i class="bi bi-arrow-left-right text-amber"></i></div>
+            <div>
+                <div class="stat-value">{{ store_changes|length }}</div>
+                <div class="stat-label">Store Moves</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card" style="box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <div class="stat-icon bg-info-soft"><i class="bi bi-spellcheck text-info"></i></div>
+            <div>
+                <div class="stat-value">{{ fuzzy_matches|length }}</div>
+                <div class="stat-label">Spelling Fixes</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card" style="box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <div class="stat-icon bg-red-soft"><i class="bi bi-person-x-fill text-red"></i></div>
+            <div>
+                <div class="stat-value">{{ not_in_payroll|length }}</div>
+                <div class="stat-label">Not in Payroll</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card" style="box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <div class="stat-icon bg-teal-soft"><i class="bi bi-person-plus-fill text-teal"></i></div>
+            <div>
+                <div class="stat-value">{{ new_in_payroll|length }}</div>
+                <div class="stat-label">New in Payroll</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Possible duplicate employees (canonical: swapped / comma-less names) ── -->
+{% if duplicate_employees %}
+<div class="card mb-4 border-0 shadow-sm" style="border:1px solid #f3c2c2;border-radius:10px;">
+    <div class="card-header py-3" style="background:#fdecec;border-bottom:1px solid #f3c2c2;border-radius:10px 10px 0 0;">
+        <i class="bi bi-people me-2" style="color:#b42318;"></i>
+        <strong style="color:#b42318;">Possible duplicate employees</strong>
+        <span class="badge ms-1" style="background:#f9d4d4;color:#7a1c14;font-size:11px;">{{ duplicate_employees|length }}</span>
+    </div>
+    <div class="card-body" style="font-size:13px;color:#7a1c14;">
+        <p style="margin-bottom:10px;">These roster records resolve to the same name (including a swapped first/last name or a
+            missing comma). A <strong>same-store</strong> match is almost always a mistaken duplicate — resolve it before deductions get split across two records.
+            Different stores may still be two real people with the same name.</p>
+        <div class="d-flex flex-column gap-2">
+            {% for g in duplicate_employees %}
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                {% if g.same_store %}
+                <span class="badge bg-danger" style="font-size:10px;">SAME STORE</span>
+                {% else %}
+                <span class="badge bg-secondary" style="font-size:10px;">diff. store</span>
+                {% endif %}
+                {% for m in g.members %}
+                <a href="{{ url_for('employee_detail', emp_id=m.id) }}" target="_blank"
+                   class="badge text-decoration-none {{ 'bg-secondary' if m.status != 'active' else 'bg-warning text-dark' }}"
+                   style="font-weight:600;padding:5px 10px;font-size:12px;">
+                    {{ m.full_name }} · {{ m.id }}{% if m.current_store %} · {{ m.current_store }}{% endif %}{% if m.status != 'active' %} · {{ m.status }}{% endif %}
+                </a>
+                {% if not loop.last %}<i class="bi bi-arrow-left-right" style="color:#b42318;"></i>{% endif %}
+                {% endfor %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- ── Ambiguous: duplicate names skipped for safety ── -->
+{% if ambiguous %}
+<div class="card mb-4 border-0 shadow-sm" style="border:1px solid #e6dcc2;border-radius:10px;">
+    <div class="card-header py-3" style="background:#faf6ec;border-bottom:1px solid #e6dcc2;border-radius:10px 10px 0 0;">
+        <i class="bi bi-exclamation-triangle me-2" style="color:#8a5220;"></i>
+        <strong style="color:#8a5220;">Duplicate names — skipped for safety</strong>
+        <span class="badge ms-1" style="background:#efe9db;color:#6b3e18;font-size:11px;">{{ ambiguous|length }}</span>
+    </div>
+    <div class="card-body" style="font-size:13px;color:#6b3e18;">
+        <p style="margin-bottom:10px;">More than one active retail employee shares each of these names, so the sync
+            can't tell them apart. They were left completely untouched — rename them manually so they're unique, then re-run.</p>
+        <div class="d-flex flex-wrap gap-2">
+            {% for a in ambiguous %}
+            <span class="badge" style="background:#efe9db;color:#6b3e18;font-weight:600;padding:5px 12px;font-size:12px;">
+                {{ a.full_name }} ×{{ a.count }} <span style="opacity:.7;">({{ a.stores }})</span>
+            </span>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<form method="post" action="{{ url_for('payroll_sync_apply') }}">
+
+    <!-- Hidden fields for new_store values -->
+    {% for c in store_changes %}
+    <input type="hidden" name="new_store_{{ c.id }}" value="{{ c.new_store }}">
+    {% endfor %}
+
+    <!-- ── Payroll period (effective date for moves & terminations) ── -->
+    <div class="card mb-4 border-0 shadow-sm" style="border-radius:10px;">
+        <div class="card-body d-flex align-items-center gap-2 flex-wrap py-3">
+            <span class="fw-bold" style="font-size:13.5px;"><i class="bi bi-calendar3 me-2 text-secondary"></i>Payroll period</span>
+            {% set months = ['January','February','March','April','May','June','July','August','September','October','November','December'] %}
+            <select name="period_month" class="form-select form-select-sm" style="width:auto;">
+                {% for mname in months %}
+                <option value="{{ loop.index }}" {% if loop.index == page_month %}selected{% endif %}>{{ mname }}</option>
+                {% endfor %}
+            </select>
+            <select name="period_year" class="form-select form-select-sm" style="width:auto;">
+                {% for y in range(page_year - 1, page_year + 2) %}
+                <option value="{{ y }}" {% if y == page_year %}selected{% endif %}>{{ y }}</option>
+                {% endfor %}
+            </select>
+            <span class="text-muted" style="font-size:12px;">Store moves &amp; terminations are effective-dated to this month.</span>
+        </div>
+    </div>
+
+    <!-- ── Section 1: Store Moves ── -->
+    <div class="card mb-4 border-0 shadow-sm" style="border-radius:10px;">
+        <div class="card-header d-flex justify-content-between align-items-center py-3" style="background:#f8fafc;border-radius:10px 10px 0 0;">
+            <span class="fw-bold"><i class="bi bi-arrow-left-right me-2 text-warning"></i>Store Moves
+                <span class="badge bg-warning text-dark ms-1" style="font-size:11px;">{{ store_changes|length }}</span>
+            </span>
+            {% if store_changes %}
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-3" data-toggle-group="move" data-checked="true">Check all</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-3" data-toggle-group="move" data-checked="false">Uncheck all</button>
+            </div>
+            {% endif %}
+        </div>
+        {% if store_changes %}
+        <div class="table-responsive">
+            <table class="table mb-0 align-middle">
+                <thead>
+                    <tr>
+                        <th style="width:40px;padding-left:16px;">
+                            <input type="checkbox" class="form-check-input" checked data-toggle-group-master="move">
+                        </th>
+                        <th>Employee</th>
+                        <th>From Store</th>
+                        <th style="width:50px;"></th>
+                        <th>To Store</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in store_changes %}
+                    <tr>
+                        <td style="padding-left:16px;">
+                            <input type="checkbox" class="form-check-input move-check" name="move[]" value="{{ c.id }}" checked>
+                        </td>
+                        <td>
+                            <div class="fw-semibold" style="font-size:13.5px;">{{ c.full_name }}</div>
+                            <div style="font-size:11px;color:#94a3b8;">{{ c.job_title }}</div>
+                        </td>
+                        <td>
+                            <span style="color:#64748b;font-size:13px;">{{ c.old_store or '—' }}</span>
+                        </td>
+                        <td style="color:#cbd5e1;"><i class="bi bi-arrow-right"></i></td>
+                        <td>
+                            <span class="badge" style="background:#efe9db;color:#6b3e18;font-size:12.5px;font-weight:600;padding:4px 10px;">
+                                {{ c.new_store }}
+                            </span>
+                            {% if c.new_store not in all_stores %}
+                            <span class="badge bg-danger ms-1" style="font-size:10px;padding:3px 6px;">new store</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="card-body text-muted text-center py-4" style="font-size:13.5px;">
+            <i class="bi bi-check-circle text-success me-2" style="font-size:16px;"></i>No store changes detected — everyone is in their registered store.
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ── Section 2: Spelling / Name Corrections Detected ── -->
+    <div class="card mb-4 border-0 shadow-sm" style="border-radius:10px;">
+        <div class="card-header d-flex justify-content-between align-items-center py-3" style="background:#f8fafc;border-radius:10px 10px 0 0;">
+            <span class="fw-bold"><i class="bi bi-spellcheck me-2 text-info"></i>Spelling / Name Corrections Detected
+                <span class="badge bg-info text-white ms-1" style="font-size:11px;">{{ fuzzy_matches|length }}</span>
+            </span>
+            {% if fuzzy_matches %}
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-3" data-toggle-group="fuzzy" data-checked="true">Link all</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-3" data-toggle-group="fuzzy" data-checked="false">Unlink all</button>
+            </div>
+            {% endif %}
+        </div>
+        {% if fuzzy_matches %}
+        <div style="background:#f0fdfa;padding:10px 16px;font-size:13px;color:#235e54;border-bottom:1px solid #ccfbf1;">
+            <i class="bi bi-magic me-1 text-info"></i>The system matched these names with highly similar spellings. 
+            Linking keeps their complete historical balances and history intact while fixing their name in the database.
+        </div>
+        <div class="table-responsive">
+            <table class="table mb-0 align-middle">
+                <thead>
+                    <tr>
+                        <th style="width:40px;padding-left:16px;">
+                            <input type="checkbox" class="form-check-input" checked data-toggle-group-master="fuzzy">
+                        </th>
+                        <th>Existing Database Employee</th>
+                        <th style="width:40px;"></th>
+                        <th>Roster / Payroll Spelling</th>
+                        <th style="text-align:center;">Match Score</th>
+                        <th>Store Move</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for m in fuzzy_matches %}
+                    <tr>
+                        <td style="padding-left:16px;">
+                            <input type="checkbox" class="form-check-input fuzzy-check" name="fuzzy_link[]" value="{{ m.db_id }}" checked>
+                            <input type="hidden" name="fuzzy_name_{{ m.db_id }}" value="{{ m.payroll_name }}">
+                            <input type="hidden" name="fuzzy_store_{{ m.db_id }}" value="{{ m.payroll_new_store }}">
+                            <input type="hidden" name="fuzzy_title_{{ m.db_id }}" value="{{ m.payroll_title }}">
+                        </td>
+                        <td>
+                            <div class="fw-semibold text-danger" style="font-size:13.5px;">{{ m.db_name }}</div>
+                            <div style="font-size:11px;color:#94a3b8;">{{ m.db_id }} · Old store: {{ m.db_old_store or '—' }}</div>
+                        </td>
+                        <td style="color:#cbd5e1;text-align:center;"><i class="bi bi-arrow-right"></i></td>
+                        <td>
+                            <div class="fw-semibold text-success" style="font-size:13.5px;">{{ m.payroll_name }}</div>
+                            <div style="font-size:11px;color:#94a3b8;">Title: {{ m.payroll_title or '—' }}</div>
+                        </td>
+                        <td style="text-align:center;">
+                            <span class="badge" style="background:rgba(47,109,58,0.1);color:#3b6d3f;font-size:11px;font-weight:700;">
+                                {{ m.score }}% match
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge" style="background:#efe9db;color:#6b3e18;font-size:12px;font-weight:600;padding:3px 8px;">
+                                {{ m.payroll_new_store }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="card-body text-muted text-center py-4" style="font-size:13.5px;">
+            <i class="bi bi-check-circle text-success me-2" style="font-size:16px;"></i>No spelling discrepancies or fuzzy matches detected.
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ── Section 3: Not in Payroll (possible terminations) ── -->
+    <div class="card mb-4 border-0 shadow-sm" style="border-radius:10px;">
+        <div class="card-header d-flex justify-content-between align-items-center py-3" style="background:#f8fafc;border-radius:10px 10px 0 0;">
+            <span class="fw-bold">
+                <i class="bi bi-person-x-fill me-2 text-danger"></i>Not in Payroll (Deactivation candidates)
+                <span class="badge bg-danger ms-1" style="font-size:11px;">{{ not_in_payroll|length }}</span>
+            </span>
+            {% if not_in_payroll %}
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-3" data-toggle-group="term" data-checked="true">Check all</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-3" data-toggle-group="term" data-checked="false">Uncheck all</button>
+            </div>
+            {% endif %}
+        </div>
+        {% if not_in_payroll %}
+        <div style="background:#fff5f5;padding:10px 16px;font-size:13px;color:#c53030;border-bottom:1px solid #feb2b2;">
+            <i class="bi bi-exclamation-octagon me-1"></i>These active employees were <strong>not found</strong> in the uploaded payroll.
+            Ticking them marks them as **terminated**. Checked employees with outstanding balances will alert you.
+        </div>
+        <div class="table-responsive">
+            <table class="table mb-0 align-middle">
+                <thead>
+                    <tr>
+                        <th style="width:40px;padding-left:16px;"></th>
+                        <th>Employee</th>
+                        <th>Current Store</th>
+                        <th>Outstanding Debt</th>
+                        <th>Action if ticked</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for e in not_in_payroll %}
+                    <tr>
+                        <td style="padding-left:16px;">
+                            <input type="checkbox" class="form-check-input term-check" name="terminate[]" value="{{ e.id }}">
+                        </td>
+                        <td class="fw-semibold" style="font-size:13.5px;">{{ e.full_name }}</td>
+                        <td style="color:#64748b;font-size:13px;">{{ e.current_store or '—' }}</td>
+                        <td>
+                            {% if e.outstanding > 0 %}
+                                <span class="badge" style="background:rgba(168,71,47,0.12);color:#823721;font-size:11.5px;font-weight:700;padding:4px 10px;">
+                                    <i class="bi bi-exclamation-triangle-fill me-1"></i>R {{ "%.2f"|format(e.outstanding) }} due
+                                </span>
+                                <div class="form-check mt-1" style="font-size:11px;">
+                                    <input class="form-check-input" type="checkbox" name="force_terminate[]" value="{{ e.id }}" id="force_{{ e.id }}">
+                                    <label class="form-check-label" style="color:#823721;" for="force_{{ e.id }}">Terminate anyway</label>
+                                </div>
+                            {% else %}
+                                <span class="text-muted" style="font-size:12px;">R 0.00</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge bg-danger" style="font-size:11px;padding:3px 6px;">Mark Terminated</span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="card-body text-muted text-center py-4" style="font-size:13.5px;">
+            <i class="bi bi-check-circle text-success me-2" style="font-size:16px;"></i>All database employees are accounted for in the payroll.
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ── Section 4: New in Payroll (Bulk Creations) ── -->
+    <div class="card mb-4 border-0 shadow-sm" style="border-radius:10px;">
+        <div class="card-header d-flex justify-content-between align-items-center py-3" style="background:#f8fafc;border-radius:10px 10px 0 0;">
+            <span class="fw-bold">
+                <i class="bi bi-person-plus-fill me-2 text-teal"></i>New in Payroll (Import candidates)
+                <span class="badge ms-1" style="background:#ccfbf1;color:#235e54;font-size:11px;">{{ new_in_payroll|length }}</span>
+            </span>
+            {% if new_in_payroll %}
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-3" data-toggle-group="addnew" data-checked="true">Check all</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary py-1 px-3" data-toggle-group="addnew" data-checked="false">Uncheck all</button>
+            </div>
+            {% endif %}
+        </div>
+        {% if new_in_payroll %}
+        <div style="background:#f0fdfa;padding:10px 16px;font-size:13px;color:#115e59;border-bottom:1px solid #99f6e4;">
+            <i class="bi bi-info-circle me-1"></i>These employees were found in the uploaded payroll but are not in the database.
+            Ticked = will be automatically created with new ID. Unticked = skipped.
+        </div>
+        <div class="table-responsive">
+            <table class="table mb-0 align-middle">
+                <thead>
+                    <tr>
+                        <th style="width:40px;padding-left:16px;">
+                            <input type="checkbox" class="form-check-input" checked data-toggle-group-master="addnew">
+                        </th>
+                        <th>Name</th>
+                        <th>Roster Store</th>
+                        <th>Job Title</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in new_in_payroll %}
+                    <tr>
+                        <td style="padding-left:16px;">
+                            <input type="checkbox" class="form-check-input addnew-check" name="add_new[]" value="{{ loop.index0 }}" checked>
+                            <input type="hidden" name="add_new_name_{{ loop.index0 }}" value="{{ p.full_name }}">
+                            <input type="hidden" name="add_new_store_{{ loop.index0 }}" value="{{ p.store }}">
+                            <input type="hidden" name="add_new_title_{{ loop.index0 }}" value="{{ p.job_title }}">
+                        </td>
+                        <td class="fw-semibold text-teal" style="font-size:13.5px;">{{ p.full_name }}</td>
+                        <td style="color:#64748b;font-size:13px;">{{ p.store or '—' }}</td>
+                        <td style="color:#64748b;font-size:13px;">{{ p.job_title or '—' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="card-body text-muted text-center py-4" style="font-size:13.5px;">
+            <i class="bi bi-check-circle text-success me-2" style="font-size:16px;"></i>No new employees detected in the payroll.
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ── Unknown Stores (auto-added on apply) ── -->
+    {% if new_stores %}
+    {% for s in new_stores %}
+    <input type="hidden" name="add_store[]" value="{{ s }}">
+    {% endfor %}
+    <div class="card mb-4 border-0 shadow-sm" style="border:1px solid #bbf7d0;border-radius:10px;">
+        <div class="card-header py-3" style="background:#f0fdf4;border-bottom:1px solid #bbf7d0;border-radius:10px 10px 0 0;">
+            <i class="bi bi-shop-window me-2" style="color:#3b6d3f;"></i>
+            <strong style="color:#3b6d3f;">New Stores — will be added automatically</strong>
+            <span class="badge ms-1" style="background:#bbf7d0;color:#2f5a37;font-size:11px;">{{ new_stores|length }}</span>
+        </div>
+        <div class="card-body" style="background:#f0fdf4;border-radius:0 0 10px 10px;">
+            <p style="font-size:13px;color:#2f5a37;margin-bottom:12px;">
+                <i class="bi bi-check-circle-fill me-1"></i>
+                These store names appear in the payroll but aren't in your list yet.
+                They'll be added to your stores database when you click <strong>Apply</strong>.
+                Double-check the spelling before proceeding.
+            </p>
+            <div class="d-flex flex-wrap gap-2">
+                {% for s in new_stores %}
+                <span style="background:#dcfce7;border:1px solid #86efac;border-radius:20px;padding:4px 14px;font-size:12px;font-weight:600;color:#2f5a37;">
+                    <i class="bi bi-plus-circle me-1"></i>{{ s }}
+                </span>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ── Apply Button ── -->
+    <div class="d-flex gap-3 justify-content-end mb-4">
+        <a href="{{ url_for('payroll_sync') }}" class="btn btn-outline-secondary py-2" style="border-radius:6px;font-weight:600;">Cancel</a>
+        <button type="submit" class="btn btn-primary px-4 py-2" style="border-radius:6px;font-weight:600;">
+            <i class="bi bi-check2-all me-2"></i>Apply Selected Changes
+        </button>
+    </div>
+
+</form>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='payroll-sync.js') }}"></script>
+{% endblock %}

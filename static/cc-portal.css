@@ -1,0 +1,725 @@
+/* Location multi-select picker */
+.cc-ai-status { display:flex; flex-wrap:wrap; gap:8px 16px; align-items:center; font-size:13px; }
+.cc-ai-status small { color:var(--text-muted); margin-left:auto; }
+.cc-loc-control { position: relative; }
+.cc-loc-box {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 5px;
+  min-height: 34px; padding: 4px 6px; cursor: text;
+  border: 1px solid var(--bs-border-color, #ced4da); border-radius: 6px; background: #fff;
+}
+.cc-loc-control.is-locked .cc-loc-box { background: #f4f4f5; cursor: default; }
+.cc-loc-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: #eef2ff; color: #3730a3; border: 1px solid #c7d2fe;
+  border-radius: 999px; padding: 1px 4px 1px 9px; font-size: 12px; line-height: 1.5;
+}
+.cc-loc-chip-x {
+  border: 0; background: none; color: #6366f1; cursor: pointer;
+  font-size: 15px; line-height: 1; padding: 0 3px; border-radius: 999px;
+}
+.cc-lb-close { min-width:44px; min-height:44px; }
+.cc-loc-chip-x:hover { background: #c7d2fe; color: #312e81; }
+.cc-loc-chip-x:focus-visible, .cc-loc-search:focus-visible { outline:3px solid var(--accent-glow); outline-offset:2px; }
+.cc-loc-search {
+  flex: 1 1 90px; min-width: 90px; border: 0; outline: none;
+  font-size: 13px; padding: 3px 2px; background: transparent;
+}
+/* Typing a store name is part of finishing a transaction, so the field needs a
+   real target on a phone — 26px was a hairline to hit next to the chips. */
+html.cc-touch .cc-loc-search { min-height: 44px; font-size: 16px; }
+.cc-loc-menu {
+  position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 3px);
+  max-height: 220px; overflow-y: auto; background: #fff;
+  border: 1px solid #e2e2e6; border-radius: 8px; box-shadow: 0 8px 24px rgba(15,23,42,.14);
+}
+.cc-loc-opt { padding: 9px 11px; min-height:40px; font-size: 13px; cursor: pointer; }
+.cc-loc-opt:hover, .cc-loc-opt.is-active { background:var(--bg-hover); color:var(--accent); }
+.cc-inbox-progress { position:relative; flex:1 1 220px; min-width:180px; height:28px; overflow:hidden;
+    border:1px solid var(--border); border-radius:8px; background:var(--bg-base); }
+.cc-inbox-progress span { position:absolute; inset:0 auto 0 0; width:0; background:rgba(38,92,66,.18); transition:width .15s ease; }
+.cc-inbox-progress strong { position:relative; z-index:1; display:grid; place-items:center; height:100%; font-size:11px; color:var(--text-primary); }
+.cc-loc-opt:hover { background: #f1f5ff; }
+.cc-loc-add { color: #4338ca; font-weight: 600; border-top: 1px solid #f0f0f3; }
+.cc-loc-empty { padding: 7px 11px; font-size: 12px; color: #9ca3af; }
+
+/* Drop-off inbox */
+.cc-dropoff-head { margin-bottom: 12px; }
+.cc-dropoff-title { font-weight: 700; font-size: 1rem; display: flex; align-items: center; gap: 6px; }
+.cc-inbox-count {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px;
+  padding: 0 6px; border-radius: 999px; background: #fde68a; color: #92400e;
+  font-size: 12px; font-weight: 700;
+}
+.cc-dropoff-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cc-dropoff-status { font-size: 12px; color: #6b7280; }
+.cc-inbox-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border, #eee);
+}
+.cc-inbox-tile { display: flex; flex-direction: column; gap: 6px; }
+.cc-inbox-name {
+  font-size: 12px; color: #4b5563; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cc-inbox-actions { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.cc-inbox-actions form { margin: 0; }
+.cc-inbox-use { white-space: nowrap; }
+
+/* List / one-at-a-time switch — a segmented control, not browser chrome. */
+.cc-view-switch { display:flex; align-items:center; gap:4px; margin:0 0 14px; }
+.cc-view-switch > span { margin-right:auto; font-size:11px; font-weight:700; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--text-muted); }
+.cc-view-switch a, .cc-view-switch strong {
+    display:inline-flex; align-items:center; gap:6px; min-height:40px; padding:8px 14px;
+    border:1px solid var(--border); border-radius:99px; background:var(--bg-surface);
+    color:var(--text-secondary); font-size:12.5px; font-weight:650; text-decoration:none; }
+.cc-view-switch strong { border-color:var(--text-primary); background:var(--text-primary); color:var(--bg-surface); }
+.cc-view-switch a:hover, .cc-view-switch a:focus-visible {
+    border-color:var(--accent); color:var(--accent); background:var(--bg-hover); outline:none; }
+
+/* Semantic accents tuned for the cream/charcoal brand (light) theme */
+:root {
+  --cc-todo:#c47f1a; --cc-todo-line:#e0a23a;
+  --cc-done:#15803d; --cc-done-line:#16a34a;
+  --cc-personal:#2563eb; --cc-personal-line:#3b82f6;
+  --cc-danger:#dc2626;
+  --cc-track:rgba(28,28,28,.10);
+}
+.cc-head-row { display:flex; justify-content:space-between; align-items:flex-start; gap:.5rem; }
+.cc-progress { margin-top:16px; }
+/* One-at-a-time keeps only the headline + bar; the focus nav says the rest. */
+.cc-progress.is-slim { margin-top:10px; }
+.cc-progress-top { display:flex; justify-content:space-between; font-size:13px; color:var(--text-secondary); margin-bottom:6px; }
+.cc-progress-pct { font-weight:800; color:var(--text-primary); font-variant-numeric:tabular-nums; }
+.cc-progress-sub { display:flex; flex-wrap:wrap; gap:8px 16px; margin-top:10px; font-size:12.5px; color:var(--text-primary); }
+.cc-progress-sub i { color:var(--text-muted); margin-right:3px; }
+.cc-attention-text { color:var(--cc-todo); font-weight:650; }
+.cc-followup-summary {
+  display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; margin-top:10px;
+  padding:10px 12px; border:1px solid rgba(196,127,26,.28); border-radius:9px;
+  background:rgba(196,127,26,.07); color:var(--text-secondary); font-size:12px;
+}
+.cc-followup-summary strong { color:var(--text-primary); }
+.cc-followup-summary span::before { content:"•"; margin-right:10px; color:var(--cc-todo); }
+.cc-progress-money { margin-top:8px; font-size:13px; color:var(--text-secondary); }
+.cc-progress-money strong { color:var(--cc-todo); font-variant-numeric:tabular-nums; }
+.cc-progress-money i { margin-right:4px; color:var(--text-muted); }
+.cc-all-in { color:var(--cc-done); font-weight:600; }
+.cc-all-in i { color:var(--cc-done); }
+.cc-progress-money i.bi-person-badge { color:var(--cc-personal); }
+.cc-bar { height:9px; border-radius:6px; background:var(--cc-track); overflow:hidden; }
+.cc-bar-fill { height:100%; background:linear-gradient(90deg,#16a34a,#22c55e); transition:width .4s cubic-bezier(.4,0,.2,1); }
+.cc-continue { display:flex; align-items:center; gap:8px; width:max-content; min-height:44px; margin-top:14px; }
+.cc-continue span { opacity:.78; font-size:12px; font-weight:500; }
+/* The two floating bars below are position:fixed over a long scrolling list of
+   transactions. They used to be translucent + backdrop-filter:blur, which makes
+   the browser re-blur the strip behind them on every scroll frame — the worst
+   case for the phones and tablets cardholders actually attach receipts on. Solid
+   backgrounds in the same colour, no per-frame compositing. */
+.cc-sticky-progress { position:fixed; z-index:1040; top:12px; left:50%; width:min(680px,calc(100% - 24px));
+    transform:translate(-50%,-18px); display:flex; align-items:center; gap:12px; padding:9px 12px;
+    border:1px solid var(--border); border-radius:12px; background:rgb(255,253,250);
+    box-shadow:0 10px 30px rgba(28,28,28,.16); opacity:0; pointer-events:none;
+    transition:opacity .18s ease,transform .18s ease; }
+.cc-sticky-progress.show { opacity:1; transform:translate(-50%,0); pointer-events:auto; }
+.cc-sticky-copy { display:flex; align-items:baseline; gap:7px; white-space:nowrap; }
+.cc-sticky-copy strong { font-size:16px; color:var(--cc-done); }
+.cc-sticky-copy span { font-size:12px; color:var(--text-secondary); }
+.cc-sticky-track { flex:1; height:5px; background:var(--cc-track); border-radius:99px; overflow:hidden; }
+.cc-sticky-track span { display:block; height:100%; background:var(--cc-done-line); }
+.cc-sticky-progress > a { min-height:36px; display:inline-flex; align-items:center; gap:5px; padding:6px 10px;
+    border-radius:8px; background:var(--text-primary); color:var(--bg-surface); text-decoration:none; font-size:12px; font-weight:700; white-space:nowrap; }
+.cc-sticky-done { color:var(--cc-done); font-size:12px; font-weight:700; white-space:nowrap; }
+
+/* Lightbox (dark overlay regardless of theme) */
+.cc-lightbox { position:fixed; inset:0; z-index:1080; background:rgba(20,18,16,.88);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; padding:16px; }
+.cc-lb-bar { width:100%; max-width:900px; display:flex; align-items:center; gap:10px; color:#f3efe9; margin-bottom:10px; }
+.cc-lb-name { font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cc-lb-close { margin-left:auto; background:transparent; border:none; color:#f3efe9; font-size:30px; line-height:1; cursor:pointer; }
+.cc-lb-img { max-width:100%; max-height:80vh; border-radius:10px; box-shadow:0 16px 50px rgba(0,0,0,.55); object-fit:contain; background:#fff; }
+
+/* Drop zone */
+.cc-dropzone { padding:0; overflow:hidden; }
+.cc-upload-toggle { width:100%; min-height:72px; display:flex; align-items:center; gap:12px; padding:12px 16px;
+    border:0; background:transparent; color:var(--text-primary); text-align:left; cursor:pointer; }
+.cc-upload-toggle:hover, .cc-upload-toggle:focus-visible { background:var(--bg-hover); outline:none; }
+.cc-upload-toggle-icon { width:42px; height:42px; border-radius:10px; flex:none; display:grid; place-items:center;
+    background:var(--accent-glow); color:var(--accent); font-size:21px; }
+.cc-upload-toggle > span:nth-child(2) { display:flex; flex-direction:column; gap:2px; flex:1; min-width:0; }
+.cc-upload-toggle small { color:var(--text-muted); font-size:12px; font-weight:400; }
+.cc-upload-toggle-action { display:inline-flex; align-items:center; gap:7px; min-height:40px; padding:8px 11px;
+    border:1px solid var(--border-hover); border-radius:9px; font-size:12px; font-weight:700; white-space:nowrap; }
+.cc-upload-toggle-action i { transition:transform .18s ease; }
+.cc-upload-toggle.open .cc-upload-toggle-action i { transform:rotate(180deg); }
+.cc-upload-panel { border-top:1px solid var(--border-light); }
+.cc-dz-inner { display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;
+    gap:5px; padding:18px; border:2px dashed var(--border-hover); border-radius:12px; margin:8px;
+    cursor:pointer; transition:border-color .15s, background .15s, transform .15s; }
+.cc-dz-inner:hover, .cc-dz-inner:focus-visible { border-color:var(--accent); background:var(--bg-hover); outline:none; }
+.cc-dropzone.is-drag .cc-dz-inner { border-color:var(--accent); background:var(--accent-glow); transform:scale(1.005); }
+.cc-dz-icon { font-size:24px; color:var(--accent); line-height:1; }
+.cc-dz-title { font-size:15px; font-weight:600; color:var(--text-primary); }
+.cc-dz-link { color:var(--accent); text-decoration:underline; }
+.cc-dz-hint { font-size:12.5px; color:var(--text-muted); }
+.cc-dz-tray { display:flex; align-items:center; gap:10px; padding:10px 14px; border-top:1px solid var(--border); }
+.cc-dz-count { font-size:13px; font-weight:600; color:var(--text-primary); margin-right:auto; }
+.cc-dz-clear { color:var(--text-secondary); text-decoration:none; padding:0 4px; }
+.cc-upload-bar { display:flex; align-items:center; gap:10px; padding:12px 14px; border-top:1px solid var(--border); }
+.cc-upload-track { flex:1; height:8px; background:var(--border); border-radius:99px; overflow:hidden; }
+.cc-upload-fill { height:100%; width:0; background:var(--accent); border-radius:99px; transition:width .15s ease; }
+.cc-upload-pct { font-size:12.5px; font-weight:600; color:var(--text-primary); white-space:nowrap; min-width:96px; text-align:right; }
+
+.cc-filters { display:flex; flex-direction:column; gap:12px; }
+.cc-filter-main { display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; width:100%; }
+.cc-filter-period { flex:1 1 auto; min-width:0; }
+.cc-filter-panel { display:flex; flex-direction:column; gap:12px;
+    padding-top:12px; border-top:1px solid var(--border-light); }
+.cc-filter-active { display:inline-grid; place-items:center; min-width:18px; height:18px;
+    padding:0 5px; border-radius:99px; background:var(--accent); color:#fff;
+    font-size:10.5px; font-weight:700; font-variant-numeric:tabular-nums; }
+.cc-filter-grp, .cc-filter-period { display:flex; flex-direction:column; gap:3px; }
+.cc-grow { flex:1 1 140px; }
+.cc-flabel { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); font-weight:600; }
+.cc-input { min-width:120px; }
+.cc-more-filter { min-height:38px; display:inline-flex; align-items:center; gap:6px; padding:6px 11px;
+    border:1px solid var(--border-hover); border-radius:8px; background:transparent; color:var(--text-secondary);
+    font-size:12px; font-weight:600; cursor:pointer; }
+.cc-more-filter:hover, .cc-more-filter.active { color:var(--accent); border-color:var(--accent); background:var(--bg-hover); }
+.cc-quick-filters { display:flex; gap:7px; overflow-x:auto; padding-bottom:2px; scrollbar-width:none; }
+.cc-quick-filters::-webkit-scrollbar { display:none; }
+.cc-filter-chip { min-height:38px; flex:none; display:inline-flex; align-items:center; gap:5px; padding:7px 12px;
+    border:1px solid var(--border); border-radius:99px; background:var(--bg-base); color:var(--text-secondary);
+    font-size:12px; font-weight:650; cursor:pointer; white-space:nowrap; }
+.cc-filter-chip:hover { border-color:var(--border-hover); color:var(--text-primary); }
+.cc-filter-chip.active { color:#fff; background:var(--text-primary); border-color:var(--text-primary); }
+.cc-filter-chip span { font-variant-numeric:tabular-nums; opacity:.75; }
+.cc-date-filters { display:flex; align-items:flex-end; flex-wrap:wrap; gap:10px; }
+.cc-clear-dates { min-height:38px; border:0; background:transparent; color:var(--text-secondary); font-size:12px; text-decoration:underline; cursor:pointer; }
+.cc-amt { font-variant-numeric:tabular-nums; font-feature-settings:"tnum"; }
+
+.cc-suggestion-head { display:flex; align-items:center; gap:11px; }
+.cc-suggestion-head .cc-sec-count { margin-left:auto; }
+.cc-suggestion-icon { width:40px; height:40px; border-radius:10px; display:grid; place-items:center;
+    background:rgba(83,72,119,.10); color:var(--accent); font-size:18px; }
+.cc-suggestion-list { display:flex; flex-direction:column; margin-top:12px; }
+.cc-suggestion { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto; align-items:center;
+    gap:12px; padding:12px 0; border-top:1px solid var(--border-light); }
+.cc-suggestion-file, .cc-suggestion-line { display:flex; flex-direction:column; min-width:0; }
+.cc-suggestion-file a, .cc-suggestion-line strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cc-suggestion-file a { color:var(--accent); font-size:13px; font-weight:650; text-decoration:none; }
+.cc-suggestion small { color:var(--text-muted); font-size:11px; }
+.cc-suggestion-arrow { color:var(--text-muted); }
+.cc-suggestion-actions { display:flex; gap:6px; }
+.cc-suggestion-actions form { margin:0; }
+.cc-suggestion-actions .btn { min-height:38px; white-space:nowrap; }
+
+/* Transaction cards */
+.cc-txn { border:1px solid var(--border); border-radius:12px;
+    padding:16px 18px; margin-bottom:14px; background:var(--bg-surface);
+    box-shadow:0 1px 2px rgba(28,28,28,.04); position:relative; isolation:isolate;
+    transition:box-shadow .18s ease, border-color .18s ease, background-color .18s ease; }
+.cc-txn:hover { box-shadow:0 4px 14px rgba(28,28,28,.07); }
+.cc-txn.cc-focus-pulse { border-color:var(--accent); box-shadow:0 0 0 4px var(--accent-glow),0 8px 24px rgba(28,28,28,.12); }
+.cc-drop-cue { position:absolute; inset:-2px; z-index:20; display:flex; align-items:center;
+    justify-content:center; gap:12px; padding:12px 18px; border:3px solid var(--cc-done);
+    border-radius:13px; background:rgba(239,248,241,.97); color:#14532d;
+    box-shadow:0 0 0 5px rgba(21,128,61,.16),0 12px 28px rgba(20,83,45,.18);
+    opacity:0; visibility:hidden; pointer-events:none; transition:opacity .16s ease; }
+.cc-drop-cue > i { display:grid; place-items:center; flex:none; width:42px; height:42px;
+    border-radius:50%; background:var(--cc-done); color:#fff; font-size:20px; }
+.cc-drop-cue > span { display:flex; flex-direction:column; min-width:0; }
+.cc-drop-cue strong { font-size:14px; }
+.cc-drop-cue small { color:#315d3d; font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cc-txn.is-drop-target, .cc-txn.is-drop-confirming, .cc-txn.is-drop-uploading {
+    border-color:var(--cc-done); background:#f7fcf8;
+    box-shadow:0 0 0 5px rgba(21,128,61,.14),0 12px 28px rgba(20,83,45,.16); }
+.cc-txn.is-drop-target .cc-drop-cue { opacity:1; visibility:visible; }
+.cc-txn.is-drop-confirming { box-shadow:0 0 0 5px rgba(21,128,61,.2),0 14px 32px rgba(20,83,45,.2); }
+.cc-txn.is-drop-uploading { border-style:dashed; }
+
+/* Native confirmation dialog: the transaction summary is repeated in text so
+   the green highlight is never the only signal identifying the destination. */
+.cc-drop-confirm { width:min(520px,calc(100vw - 28px)); max-width:none; padding:0;
+    border:0; border-radius:16px; color:var(--text-primary); background:transparent;
+    box-shadow:0 24px 70px rgba(28,28,28,.28); }
+.cc-drop-confirm::backdrop { background:rgba(24,22,19,.56); }
+.cc-drop-confirm-card { display:grid; grid-template-columns:48px minmax(0,1fr); gap:4px 14px;
+    padding:22px; border:1px solid var(--border); border-radius:16px; background:var(--bg-surface); }
+.cc-drop-confirm-icon { grid-row:1; display:grid; place-items:center; width:48px; height:48px;
+    border-radius:50%; background:rgba(21,128,61,.12); color:var(--cc-done); font-size:22px; }
+.cc-drop-confirm-kicker { color:var(--cc-done); font-size:10px; font-weight:750;
+    letter-spacing:.09em; text-transform:uppercase; }
+.cc-drop-confirm h2 { margin:3px 0 0; font-size:19px; line-height:1.25; }
+.cc-drop-confirm-target, .cc-drop-confirm-files, .cc-drop-confirm-note,
+.cc-drop-confirm-actions { grid-column:1 / -1; }
+.cc-drop-confirm-target { display:grid; grid-template-columns:1fr auto; gap:4px 12px;
+    margin-top:14px; padding:14px; border:2px solid rgba(21,128,61,.45); border-radius:11px;
+    background:#f3faf5; }
+.cc-drop-confirm-target strong { min-width:0; overflow-wrap:anywhere; }
+.cc-drop-confirm-target .cc-confirm-amount { grid-column:2; grid-row:1 / span 2;
+    align-self:center; font-weight:750; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.cc-drop-confirm-target small { color:var(--text-muted); }
+.cc-drop-confirm-files { margin-top:10px; color:var(--text-secondary); font-size:12.5px; overflow-wrap:anywhere; }
+.cc-drop-confirm-note { margin:10px 0 0; color:var(--text-muted); font-size:12px; }
+.cc-drop-confirm-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:18px; }
+.cc-drop-confirm-actions .btn { min-height:44px; }
+.cc-focus-nav { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.cc-focus-heading { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.cc-focus-heading > span:last-child { color:var(--text-muted); font-size:12px; }
+.cc-focus-kicker { color:var(--accent); font-size:10px; font-weight:750; letter-spacing:.08em; text-transform:uppercase; }
+.cc-focus-actions { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:8px; }
+.cc-focus-actions .btn { min-height:44px; display:inline-flex; align-items:center; gap:5px; }
+.cc-focus-mode #ccTodo > .cc-txn[data-ready="y"] { display:block; }
+
+/* Status chip — replaces the old coloured left bar */
+.cc-status { margin-top:9px; }
+.cc-status-chip { display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:700;
+    padding:3px 11px; border-radius:20px; border:1px solid transparent; letter-spacing:.01em; }
+.cc-status-chip i { font-size:12px; }
+.cc-status-chip.is-todo { color:var(--cc-todo); background:rgba(196,127,26,.10); border-color:rgba(196,127,26,.32); }
+.cc-status-chip.is-done { color:var(--cc-done); background:rgba(22,163,74,.10); border-color:rgba(22,163,74,.30); }
+.cc-status-chip.is-personal { color:var(--cc-personal); background:rgba(37,99,235,.10); border-color:rgba(37,99,235,.30); }
+.cc-status-chip.is-vat { color:#795919; background:rgba(183,140,45,.12); border-color:rgba(121,89,25,.32); }
+.cc-ai-line-state { display:inline-flex; align-items:center; gap:5px; margin-top:8px;
+    padding:4px 8px; border-radius:7px; background:var(--bg-base); color:var(--text-muted); font-size:11px; }
+.cc-ai-line-state.is-suggested { color:var(--cc-todo); background:rgba(196,127,26,.09); font-weight:650; }
+.cc-ai-line-state.is-confirmed { color:var(--cc-done); background:rgba(22,163,74,.08); }
+.cc-ai-line-state.is-rejected { color:var(--text-secondary); border:1px solid var(--border); }
+
+/* Two-section layout: "Needs attention" + collapsible "Completed" */
+.cc-sec-title { display:block; font-weight:700; color:var(--text-primary); margin-bottom:12px; }
+.cc-sec-head { display:flex; align-items:center; gap:8px; margin:2px 0 12px; font-weight:700; }
+.cc-expand-all { display:inline-flex; align-items:center; gap:6px; min-height:38px;
+    padding:6px 11px; border:1px solid var(--border); border-radius:8px;
+    background:transparent; color:var(--text-secondary); font-size:12px;
+    font-weight:650; cursor:pointer; }
+.cc-expand-all:hover { color:var(--accent); border-color:var(--accent); background:var(--bg-hover); }
+.cc-expand-all:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+.cc-select-ready { margin-left:auto; min-height:38px; display:inline-flex; align-items:center; gap:6px; padding:6px 11px;
+    border:1px solid rgba(22,163,74,.3); border-radius:8px; background:rgba(22,163,74,.08);
+    color:var(--cc-done); font-size:12px; font-weight:700; cursor:pointer; }
+.cc-sec-count { font-size:12px; font-weight:600; color:var(--text-muted); background:var(--bg-base);
+    border:1px solid var(--border); border-radius:20px; padding:2px 10px; }
+.cc-todo-empty { color:var(--cc-done); font-weight:600; }
+.cc-todo-empty i { margin-right:4px; }
+.cc-done-head { display:flex; align-items:center; gap:8px; margin:18px 0 12px; padding-top:16px;
+    border-top:1px solid var(--border); cursor:pointer; user-select:none; font-weight:700; }
+.cc-done-caret { color:var(--text-muted); transition:transform .18s ease; }
+.cc-done-head.open .cc-done-caret { transform:rotate(90deg); }
+.cc-done-count { font-size:12px; font-weight:600; color:var(--cc-done); background:rgba(22,163,74,.10);
+    border:1px solid rgba(22,163,74,.30); border-radius:20px; padding:2px 10px; }
+.cc-done-hint { font-size:12px; font-weight:400; color:var(--text-muted); margin-left:auto; }
+/* In list view every card is collapsed to one scannable line; tap the row (or
+   its chevron) to open it for editing. Focus mode renders the card expanded. */
+#ccDone .cc-txn { background:var(--bg-base); }
+.cc-txn.cc-collapsible .cc-txn-top { cursor:pointer; }
+.cc-txn.is-collapsed { padding:11px 15px; }
+.cc-txn.is-collapsed .cc-txn-body { display:none; }
+.cc-txn.is-collapsed .cc-status { margin-top:6px; }
+.cc-txn-toggle { flex:none; align-self:center; display:grid; place-items:center;
+    width:34px; height:34px; margin:-4px -6px -4px 0; border:0; border-radius:8px;
+    background:transparent; color:var(--text-muted); font-size:15px; cursor:pointer; }
+/* The control every cardholder presses first, and the smallest on the card.
+   The icon stays 34px; only the hit area grows, so the collapsed row does not. */
+html.cc-touch .cc-txn-toggle { width:44px; height:44px; margin-block:-9px; }
+.cc-txn-toggle:hover { background:var(--bg-hover); color:var(--text-primary); }
+.cc-txn-toggle:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+.cc-txn-toggle i { transition:transform .18s ease; }
+.cc-txn:not(.is-collapsed) .cc-txn-toggle i { transform:rotate(180deg); }
+/* Prevent a flash of resolved cards in the To-do list before JS distributes them */
+#ccTodo > .cc-txn[data-ready="y"] { display:none; }
+/* Fail-safe: if the sectioning JS errors (adds .cc-jsfail), reveal everything —
+   including every collapsed body, which otherwise has no way left to open. */
+html.cc-jsfail #ccTodo > .cc-txn { display:block !important; }
+html.cc-jsfail .cc-txn.is-collapsed { padding:16px 18px; }
+html.cc-jsfail .cc-txn.is-collapsed .cc-txn-body { display:block; }
+.cc-txn-top { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+.cc-txn-info { display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; flex:1 1 auto; min-width:0; }
+.cc-sel-wrap { display:inline-flex; align-items:center; padding-top:2px; cursor:pointer; flex:none; }
+.cc-sel { width:18px; height:18px; cursor:pointer; accent-color:var(--cc-done); }
+.cc-txn-date { font-size:12px; color:var(--text-muted); font-variant-numeric:tabular-nums; }
+.cc-txn-merchant { font-weight:600; color:var(--text-primary); }
+.cc-txn-amt { font-weight:700; color:var(--text-primary); white-space:nowrap; font-size:15px; }
+.cc-field-label { display:block; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--text-muted); font-weight:600; margin:12px 0 5px; }
+.cc-field-label i { margin-right:3px; }
+.cc-need { color:#fff; background:var(--cc-todo); font-weight:700; font-size:9px; padding:2px 7px;
+    border-radius:20px; margin-left:4px; vertical-align:middle; letter-spacing:.03em; text-transform:uppercase; }
+.cc-reason.is-missing .cc-reason-input { border-color:var(--cc-todo-line); background:#fffaf2; }
+.cc-location.is-missing .cc-loc-box { border-color:var(--cc-todo-line); background:#fffaf2; }
+.cc-reason-input { width:100%; }
+.cc-field-help { color:var(--text-muted); font-size:11px; font-weight:400; letter-spacing:0; text-transform:none; }
+.cc-field-suggestion { display:flex; align-items:center; gap:4px; max-width:100%; min-height:40px;
+    margin-top:6px; padding:6px 9px; border:1px solid rgba(83,72,119,.22); border-radius:8px;
+    background:rgba(83,72,119,.06); color:var(--accent); font-size:11px; font-weight:650;
+    text-align:left; cursor:pointer; }
+.cc-field-suggestion span { color:var(--text-primary); font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cc-field-suggestion:hover, .cc-field-suggestion:focus-visible { border-color:var(--accent); outline:2px solid var(--accent-glow); outline-offset:1px; }
+/* Receipt thumbnails — show the actual image so it's easy to confirm the
+   receipt matches the transaction; click to enlarge in the lightbox. */
+.cc-receipt-gallery { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-start; }
+.cc-rcpt-tile { width:112px; }
+.cc-rcpt-thumb { display:flex; align-items:center; justify-content:center; width:112px; height:112px;
+    border-radius:10px; overflow:hidden; border:1px solid var(--border); background:var(--bg-base);
+    cursor:zoom-in; transition:border-color .12s, box-shadow .12s; }
+.cc-rcpt-thumb:hover { border-color:var(--accent); box-shadow:0 4px 14px rgba(28,28,28,.12); }
+.cc-rcpt-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+.cc-rcpt-fileicon { display:flex; flex-direction:column; align-items:center; gap:3px; color:var(--text-muted); }
+.cc-rcpt-fileicon i { font-size:36px; line-height:1; }
+.cc-rcpt-ext { font-size:10px; font-weight:700; letter-spacing:.06em; }
+.cc-rcpt-cap { display:flex; align-items:center; gap:2px; margin-top:5px; }
+.cc-rcpt-name { font-size:11px; color:var(--text-secondary); overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap; flex:1; min-width:0; }
+.cc-x-sm { min-width:22px; min-height:22px; font-size:15px; flex:none; }
+/* Camera-first tile. Hidden on desktop like every other .cc-cam control; on a
+   phone it leads the gallery and carries the solid fill so it reads as the
+   primary route, leaving the dashed "Add" tile as the way to a gallery photo
+   or a PDF. */
+.cc-rcpt-cam { display:none; }
+html.cc-touch .cc-rcpt-cam { display:flex; flex-direction:column; align-items:center;
+    justify-content:center; gap:6px; width:112px; height:112px; flex:none;
+    border:none; border-radius:10px; background:var(--accent); color:#fff;
+    font-size:12px; font-weight:650; cursor:pointer; }
+html.cc-touch .cc-rcpt-cam i { font-size:26px; line-height:1; }
+html.cc-touch .cc-rcpt-cam:active { filter:brightness(.92); }
+html.cc-touch .cc-rcpt-cam:focus-visible { outline:2px solid var(--text-primary); outline-offset:2px; }
+/* "Add file" opens the picker; "Link" reuses a file already uploaded. Same tile
+   shape so the gallery reads as one row of choices — camera, new file, existing
+   file — rather than one button that unfolds a form. */
+.cc-rcpt-add,
+.cc-rcpt-link { width:112px; height:112px; border-radius:10px; border:1.5px dashed var(--border-hover);
+    background:transparent; color:var(--text-secondary); cursor:pointer; font-size:12px; font-weight:600;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; transition:all .12s; }
+.cc-rcpt-add:hover,
+.cc-rcpt-link:hover { border-color:var(--accent); color:var(--accent); background:var(--bg-hover); }
+.cc-rcpt-add:focus-visible,
+.cc-rcpt-link:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.cc-rcpt-add i,
+.cc-rcpt-link i { font-size:22px; }
+.cc-rcpt-link { border-style:solid; }
+.cc-rcpt-empty { align-self:center; font-size:12.5px; color:var(--text-muted); }
+.cc-chip { display:inline-block; font-size:9.5px; font-weight:700; padding:2px 8px; border-radius:20px;
+    margin-left:6px; vertical-align:middle; text-transform:uppercase; letter-spacing:.03em; }
+.cc-chip-personal { background:rgba(37,99,235,.12); color:var(--cc-personal); }
+.cc-chip-req { background:rgba(220,38,38,.12); color:var(--cc-danger); }
+.cc-chip-vat { background:rgba(183,140,45,.14); color:#795919; }
+.cc-vat-request { display:flex; align-items:flex-start; gap:12px; margin:12px 0 4px;
+    padding:13px 14px; border:1px solid rgba(121,89,25,.28); border-radius:10px;
+    background:#fff9e8; color:#5f4613; }
+.cc-vat-request > i { margin-top:2px; font-size:20px; color:#8a661c; }
+.cc-vat-request strong { display:block; margin-bottom:3px; color:#4e390f; font-size:13px; }
+.cc-vat-request p { margin:0; max-width:72ch; font-size:12.5px; line-height:1.55; }
+.cc-vat-request small { display:block; margin-top:4px; color:#73591f; font-size:11px; }
+.cc-vat-progress { border-color:rgba(121,89,25,.22); background:rgba(183,140,45,.08); color:#6f5218; }
+.cc-save-status { font-size:11px; font-weight:600; margin-left:8px; text-transform:none; letter-spacing:0; }
+.cc-save-status.saving { color:var(--text-muted); }
+.cc-save-status.ok { color:var(--cc-done); }
+.cc-save-status.err { color:var(--cc-todo); }
+.cc-txn-foot { margin-top:12px; display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+.cc-txn-foot form { display:inline-flex; margin:0; }
+.cc-personal-btn { display:inline-flex; align-items:center; gap:5px; background:transparent;
+    border:1px solid var(--border-hover); color:var(--text-secondary);
+    border-radius:8px; padding:6px 12px; min-height:44px; font-size:12px; cursor:pointer; transition:all .12s; }
+.cc-personal-btn:hover { color:var(--cc-personal); border-color:var(--cc-personal-line); background:rgba(37,99,235,.05); }
+.cc-personal-btn.on { background:rgba(37,99,235,.10); border-color:var(--cc-personal-line); color:var(--cc-personal); font-weight:600; }
+.cc-submit-btn, .cc-next-action { min-height:44px; }
+.cc-submitted-note { display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:600; color:var(--cc-done); }
+.cc-submitted-note i { color:var(--cc-done); }
+.cc-undo-btn { display:inline-flex; align-items:center; gap:4px; background:transparent; border:none;
+    color:var(--text-secondary); font-size:12px; cursor:pointer; padding:6px 4px; text-decoration:underline; }
+.cc-undo-btn:hover { color:var(--text-primary); }
+
+/* Submitted state: chip, row tint, and the bulk-select bar */
+.cc-sub-chip { display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:700;
+    padding:3px 11px; border-radius:20px; letter-spacing:.01em; margin-right:6px;
+    color:var(--cc-done); background:rgba(22,163,74,.12); border:1px solid rgba(22,163,74,.35); }
+.cc-sub-chip i { font-size:12px; }
+.cc-txn[data-submitted="y"] { border-color:rgba(22,163,74,.35);
+    background:linear-gradient(0deg, rgba(22,163,74,.045), rgba(22,163,74,.045)), var(--bg-surface); }
+.cc-bulkbar { position:fixed; z-index:1035; left:50%; bottom:18px; width:min(560px,calc(100% - 24px));
+    transform:translateX(-50%); display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:10px 12px;
+    border:1px solid var(--border); border-radius:12px; background:rgb(255,253,250);
+    box-shadow:0 12px 32px rgba(28,28,28,.18); }
+.cc-bulk-count { font-size:12.5px; color:var(--text-secondary); margin-right:auto; font-variant-numeric:tabular-nums; }
+.cc-bulk-submit { white-space:nowrap; }
+.cc-bulk-clear { min-height:36px; border:0; background:transparent; color:var(--text-secondary); font-size:12px; text-decoration:underline; cursor:pointer; }
+.cc-lock-banner { display:flex; align-items:center; gap:12px; border-left:4px solid var(--cc-todo-line); }
+.cc-lock-banner i { font-size:22px; color:var(--cc-todo); }
+.cc-submit-card { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.cc-attach-row { margin-top:12px; }
+.cc-attach-panel { display:flex; flex-direction:column; gap:10px;
+    padding:14px; border:1px solid var(--border); border-radius:10px; background:var(--bg-base); }
+.cc-attach-hint { font-size:12px; color:var(--text-muted); margin:0; }
+.cc-attach-form { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.cc-attach-form .form-control, .cc-attach-form .form-select { flex:1 1 220px; min-width:0; }
+.cc-attach-form .btn { flex:0 0 auto; white-space:nowrap; min-height:38px;
+    display:inline-flex; align-items:center; gap:5px; }
+/* The project's touch rule is 44 px; this button is the no-JS upload path, which
+   is exactly the case where a phone has nothing else to press. */
+html.cc-touch .cc-attach-form .btn,
+html.cc-touch .cc-attach-form .form-control { min-height:44px; }
+/* Must come AFTER the rule above, which has equal specificity and would
+   otherwise re-show it. Two reasons to hide it: on a desktop the base
+   `.cc-cam-btn { display:none }` already intends this (a machine with no useful
+   camera should not be offered one) but `.cc-attach-form .btn` was overriding
+   it; on touch the gallery's camera tile fires the very same input one tap
+   earlier, so this is duplication. */
+/* Both selectors are needed: the plain one outranks `.cc-attach-form .btn` on
+   desktop (equal specificity, later wins), and the .cc-touch one outranks
+   `html.cc-touch .cc-cam-btn`, which would otherwise re-show it on phones. */
+.cc-attach-form .cc-cam-btn,
+html.cc-touch .cc-attach-form .cc-cam-btn { display:none; }
+/* With the one-tap picker live, the panel's own file input and Upload button are
+   the same action reached the long way round — and that raw <input type=file>
+   was the only unstyled control in the portal. The panel becomes purely "link an
+   existing file". Both come straight back if cc-attach-js is absent. */
+html.cc-attach-js .cc-attach-form .cc-pick-input,
+html.cc-attach-js .cc-attach-form button[type="submit"] { display:none; }
+/* The form itself stays: .cc-attach-status inside it is where the per-transaction
+   upload reports "Uploading to this transaction… 45%", and FormData still reads
+   the hidden token/focus fields it carries. */
+html.cc-attach-js .cc-attach-hint-nojs { display:none; }
+.cc-attach-hint-js { display:none; }
+html.cc-attach-js .cc-attach-hint-js { display:block; }
+html.cc-attach-js .cc-attach-or { display:none; }
+/* Attaching is the moment a cardholder is most likely to think it has failed and
+   tap again, so while it runs the status stops being 11px muted metadata and
+   reads as the card's live state — matching the month uploader's progress bar. */
+.cc-attach-status { flex:1 1 100%; min-height:18px; color:var(--text-muted); font-size:11px; }
+.cc-txn.is-drop-uploading .cc-attach-status {
+    display:flex; align-items:center; gap:8px; padding:9px 11px;
+    border-radius:8px; background:var(--bg-hover);
+    color:var(--text-primary); font-size:12.5px; font-weight:650;
+}
+.cc-txn.is-drop-uploading .cc-attach-status::before {
+    content:""; width:15px; height:15px; flex:none; border-radius:50%;
+    border:2px solid var(--accent); border-top-color:transparent;
+    animation:cc-attach-spin .7s linear infinite;
+}
+@keyframes cc-attach-spin { to { transform:rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+    .cc-txn.is-drop-uploading .cc-attach-status::before { animation:none; }
+}
+/* subtle "or" divider between the upload form and the link form */
+.cc-attach-or { display:flex; align-items:center; gap:10px; font-size:11px;
+    text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted); }
+.cc-attach-or::before, .cc-attach-or::after { content:""; flex:1; height:1px; background:var(--border); }
+.cc-x { display:inline-flex; align-items:center; justify-content:center; min-width:32px; min-height:32px;
+    background:transparent; border:none; color:var(--cc-danger); font-size:18px; line-height:1; cursor:pointer;
+    border-radius:6px; transition:background .12s; }
+.cc-x:hover { background:rgba(220,38,38,.10); }
+.cc-bucket { list-style:none; padding:0; margin:0; }
+.cc-bucket-item { padding:9px 0; border-bottom:1px solid var(--border-light); }
+.cc-bucket-item:last-child { border-bottom:none; }
+.cc-bucket-row { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.cc-bucket-name { color:var(--cc-personal); text-decoration:none; max-width:55%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cc-bucket-actions { display:flex; align-items:center; gap:6px; }
+.cc-link-toggle { display:inline-flex; align-items:center; gap:4px; background:transparent;
+    border:1px solid var(--border-hover); color:var(--text-secondary); border-radius:8px;
+    padding:5px 12px; min-height:32px; font-size:12px; cursor:pointer; transition:all .12s; }
+.cc-link-toggle:hover, .cc-link-toggle.open { color:var(--accent); border-color:var(--accent); background:var(--bg-hover); }
+
+/* Link-to-transactions checklist picker */
+.cc-linkpanel { margin-top:10px; padding:12px; border:1px solid var(--border); border-radius:10px; background:var(--bg-base); }
+.cc-linkpanel-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; }
+.cc-linkpanel-head .cc-link-search { max-width:170px; }
+.cc-pick-list { max-height:260px; overflow-y:auto; display:flex; flex-direction:column; gap:2px; margin-bottom:10px; }
+.cc-pick { display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:8px; cursor:pointer; transition:background .1s; }
+.cc-pick:hover { background:var(--bg-hover); }
+.cc-pick input { width:18px; height:18px; flex:none; accent-color:var(--cc-personal); cursor:pointer; }
+.cc-pick-date { font-size:12px; color:var(--text-muted); font-variant-numeric:tabular-nums; flex:none; width:86px; }
+.cc-pick-merchant { flex:1; font-size:13px; color:var(--text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cc-pick-amt { font-size:13px; font-weight:600; color:var(--text-primary); flex:none; }
+.cc-pick-has { font-size:9.5px; font-weight:700; color:var(--cc-done); background:rgba(22,163,74,.12);
+    border-radius:20px; padding:1px 7px; flex:none; }
+
+/* Custom "link an existing file" picker — replaces the native <select> so it
+   feels part of the app: thumbnails, on-brand states, smooth reveal. */
+.cc-filepick { position:relative; }
+.cc-filepick-trigger { width:100%; display:flex; align-items:center; justify-content:space-between;
+    gap:10px; min-height:44px; padding:10px 14px; border:1px solid var(--border-hover);
+    border-radius:10px; background:var(--bg-surface); color:var(--text-primary);
+    font-size:13px; font-weight:600; cursor:pointer; transition:border-color .15s, background .15s, box-shadow .15s; }
+.cc-filepick-trigger-lbl { display:inline-flex; align-items:center; gap:6px; }
+.cc-filepick-trigger-lbl i { color:var(--accent); }
+.cc-filepick-trigger:hover { border-color:var(--accent); background:var(--bg-hover); }
+.cc-filepick.open .cc-filepick-trigger { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow); }
+.cc-filepick-caret { color:var(--text-muted); font-size:12px; transition:transform .18s ease; }
+.cc-filepick.open .cc-filepick-caret { transform:rotate(180deg); }
+/* Inline expanding menu (not a floating popover — robust on mobile, no clipping). */
+.cc-filepick-menu { max-height:0; opacity:0; overflow:hidden auto; margin-top:0;
+    border:1px solid transparent; border-radius:10px; background:var(--bg-base);
+    transition:max-height .22s ease, opacity .18s ease, margin-top .18s ease, border-color .18s ease; }
+.cc-filepick.open .cc-filepick-menu { max-height:340px; opacity:1; margin-top:8px; border-color:var(--border);
+    box-shadow:0 8px 24px rgba(28,28,28,.10); }
+.cc-filepick-label { font-size:10px; text-transform:uppercase; letter-spacing:.05em; font-weight:700;
+    color:var(--text-muted); padding:10px 14px 4px; }
+.cc-filepick-opt { display:flex; align-items:center; gap:10px; width:100%; min-height:52px;
+    padding:8px 12px; border:none; background:transparent; cursor:pointer; text-align:left;
+    border-top:1px solid var(--border-light); transition:background .12s; }
+.cc-filepick-opt:first-of-type { border-top:none; }
+.cc-filepick-opt:hover, .cc-filepick-opt:focus-visible { background:var(--bg-hover); outline:none; }
+.cc-filepick-thumb { flex:none; width:40px; height:40px; border-radius:8px; overflow:hidden;
+    display:flex; align-items:center; justify-content:center; background:var(--bg-surface);
+    border:1px solid var(--border); color:var(--text-muted); }
+.cc-filepick-thumb img { width:100%; height:100%; object-fit:cover; }
+.cc-filepick-thumb i { font-size:18px; }
+.cc-filepick-name { flex:1; min-width:0; font-size:13px; color:var(--text-primary); font-weight:500;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cc-filepick-sub { display:block; font-size:10.5px; font-weight:500; color:var(--text-muted);
+    text-transform:none; letter-spacing:0; }
+.cc-filepick-plus { flex:none; color:var(--accent); font-size:16px; opacity:.5; transition:opacity .12s; }
+.cc-filepick-opt:hover .cc-filepick-plus { opacity:1; }
+.cc-filepick-opt.is-elsewhere .cc-filepick-thumb { opacity:.85; }
+.cc-filepick-empty { font-size:12px; color:var(--text-muted); padding:14px; text-align:center; }
+/* "Show more" expander — reused by the file picker AND the transaction checklist. */
+.cc-filepick-more-toggle { display:flex; align-items:center; gap:6px; width:100%; min-height:40px;
+    padding:9px 14px; border:none; border-top:1px solid var(--border-light); background:transparent;
+    color:var(--text-secondary); font-size:12px; font-weight:600; cursor:pointer; transition:color .12s; }
+.cc-filepick-more-toggle:hover { color:var(--accent); }
+.cc-filepick-more-caret { font-size:11px; transition:transform .18s ease; }
+.cc-filepick-more-toggle.open .cc-filepick-more-caret { transform:rotate(90deg); }
+.cc-filepick-more { max-height:0; opacity:0; overflow:hidden;
+    transition:max-height .22s ease, opacity .18s ease; }
+.cc-filepick-more.open { max-height:1000px; opacity:1; }
+@media (prefers-reduced-motion: reduce) {
+  .cc-filepick-menu, .cc-filepick-more, .cc-filepick-caret, .cc-filepick-more-caret,
+  .cc-sticky-progress, .cc-upload-toggle-action i, .cc-txn, .cc-drop-cue { transition:none; }
+  html { scroll-behavior:auto; }
+}
+
+/* "Take photo" — camera capture. Hidden by default; revealed only on touch /
+   coarse-pointer devices (phones/tablets) via the cc-touch class set in JS, so
+   a desktop never shows a camera control it can't meaningfully use. */
+.cc-cam-btn { display:none; }
+html.cc-touch .cc-cam-btn { display:inline-flex; align-items:center; gap:6px; }
+.cc-dz-cam { margin:0 5px 12px; min-height:46px; justify-content:center; }
+html.cc-touch .cc-dz-cam { display:flex; }
+
+/* Wide screens: the portal column is 760px everywhere else, which left a card
+   page stacking three short fields down a 1280px screen. Widen it here only
+   (this sheet loads on the cardholder card page alone) and put the receipt
+   gallery beside the two text fields instead of under them. */
+@media (min-width: 992px) {
+  .portal-shell { max-width: 1040px; }
+  /* 236px = two 112px thumbnails plus their gap, so the gallery wraps in pairs
+     instead of leaving a wide empty gutter next to a single tile. */
+  .cc-txn-body { display:grid; grid-template-columns:minmax(0,1fr) 236px;
+      gap:0 26px; align-items:start; }
+  .cc-txn-fields { min-width:0; }
+  .cc-vat-request, .cc-txn-foot, .cc-attach-row { grid-column:1 / -1; }
+  .cc-receipts-block { grid-column:2; }
+  /* The gallery is the second grid item, so its label needs the same top
+     margin the first field label gets to sit on the same baseline. */
+  .cc-receipts-block > .cc-field-label { margin-top:12px; }
+}
+
+/* Narrow-screen (phone) layout tuning.
+   These override shared portal classes, but this stylesheet only loads on the
+   cardholder card page — the hub/employee/store portal pages keep their own
+   spacing. Everything here is about density: the desktop padding scale left a
+   phone showing about one and a half transactions per screen. */
+@media (max-width: 560px) {
+  .portal-shell { padding:12px 10px 48px; }
+  .portal-card { padding:13px; margin-bottom:9px; border-radius:12px; }
+
+  /* Top bar: the brand block wrapped to two lines and pushed the workspace nav
+     onto a row of its own — 146px before a single transaction. */
+  .portal-header { padding:4px 6px; gap:9px; }
+  .portal-header .brand-icon { width:32px; height:32px; font-size:16px; border-radius:9px; }
+  .portal-title { font-size:15px; }
+  .portal-sub { font-size:12px; }
+  .portal-cap-nav a { padding:7px 10px; }
+  .portal-account summary { padding:7px 9px; }
+  /* On a phone this workspace nav takes a full row of its own, and for a plain
+     cardholder its only link points at the page they are already on. Drop the
+     current-page link, and the whole strip when nothing else is left — an RM
+     with a Regional dashboard link still keeps theirs. */
+  .portal-cap-nav a.active { display:none; }
+  .portal-cap-nav:not(:has(a:not(.active))) { display:none; }
+
+  /* One line of copy is enough on a phone. */
+  .cc-upload-toggle { min-height:60px; padding:9px 11px; gap:10px; }
+  .cc-upload-toggle-icon { width:36px; height:36px; font-size:18px; }
+  .cc-upload-toggle small { font-size:11.5px; }
+
+  /* A collapsed row is three lines at this width: date + merchant + amount,
+     then the status chip. Tried re-flowing it into a grid so the merchant got
+     the full width and the amount dropped beside the chip — that just moved the
+     wrapping onto the chip ("Needs receipt · reason · location" is ~230px on
+     its own) and rows grew from 95px to 115px. The tight three-line form is the
+     smaller one; only the padding around it is worth reclaiming. */
+  .cc-txn-date { flex:none; white-space:nowrap; }
+  .cc-filters { gap:9px; }
+  .cc-flabel { font-size:10px; }
+
+  /* Head card: tighter type, tighter rhythm. */
+  .cc-head .portal-sub { font-size:12px; line-height:1.4; }
+  .cc-progress { margin-top:11px; }
+  .cc-progress-sub { gap:5px 12px; margin-top:8px; font-size:12px; }
+  .cc-progress-money { margin-top:6px; font-size:12.5px; }
+  .cc-continue { margin-top:11px; }
+  .cc-view-switch { margin-bottom:10px; }
+
+  /* Transaction rows are the bulk of the page — 25 of them. */
+  .cc-txn { margin-bottom:8px; border-radius:11px; }
+  .cc-drop-cue { justify-content:flex-start; padding:10px 12px; }
+  .cc-drop-cue > i { width:36px; height:36px; font-size:17px; }
+  .cc-drop-confirm-card { padding:18px; }
+  .cc-drop-confirm-actions { flex-direction:column-reverse; }
+  .cc-drop-confirm-actions .btn { width:100%; justify-content:center; }
+  .cc-txn.is-collapsed { padding:9px 11px; }
+  .cc-txn.is-collapsed .cc-status { margin-top:4px; }
+  .cc-status-chip { padding:2px 9px; font-size:11.5px; }
+  .cc-txn-merchant { font-size:14.5px; }
+  .cc-txn-amt { font-size:14.5px; }
+  .cc-sec-title { margin-bottom:9px; }
+  .cc-sec-head { margin:0 0 9px; }
+  /* At 375px "Continue next task" + "Add a receipt" side by side wrapped into
+     four ragged lines. Stack the label over the specific action instead. */
+  .cc-continue { display:grid; width:100%; max-width:100%;
+      grid-template-columns:minmax(0,1fr) auto; gap:0 10px; text-align:left; }
+  .cc-continue strong { grid-column:1; }
+  .cc-continue span { grid-column:1; text-align:left; }
+  .cc-continue i { grid-column:2; grid-row:1 / span 2; align-self:center; }
+  .cc-filter-main { gap:8px; }
+  .cc-focus-nav { align-items:stretch; flex-direction:column; gap:10px; padding:14px; }
+  .cc-focus-actions { justify-content:stretch; }
+  .cc-focus-actions .btn { flex:1 1 calc(50% - 8px); justify-content:center; }
+  /* Month select + Filter button share one row — that whole bar is now ~60px
+     instead of the 284px the chips and search used to occupy. */
+  .cc-filter-period { flex:1 1 auto; min-width:0; }
+  .cc-filter-grp { flex:1 1 46%; }
+  .cc-grow { flex:1 1 100%; }
+  .cc-input { min-width:0; }
+  .cc-more-filter { flex:0 0 auto; min-height:44px; }
+  .cc-filter-chip { min-height:44px; }
+  .cc-upload-toggle { min-height:68px; padding:10px 12px; }
+  .cc-upload-toggle-action { padding:8px; font-size:0; }
+  .cc-upload-toggle-action i { font-size:13px; }
+  .cc-sticky-progress { top:8px; gap:8px; }
+  .cc-sticky-track { display:none; }
+  .cc-sticky-copy span { display:none; }
+  .cc-suggestion { grid-template-columns:1fr auto; gap:8px; }
+  .cc-suggestion-arrow { display:none; }
+  .cc-suggestion-line { grid-column:1; }
+  .cc-suggestion-actions { grid-column:2; grid-row:1 / span 2; flex-direction:column; }
+  .cc-suggestion-actions .btn { min-height:44px; }
+  .cc-sec-head { flex-wrap:wrap; }
+  .cc-expand-all { margin-left:auto; min-height:40px; }
+  .cc-select-ready { margin-left:0; flex:1 1 100%; justify-content:center; min-height:44px; }
+  .cc-attach-form { gap:8px; }
+  .cc-attach-form .form-control, .cc-attach-form .btn { flex:1 1 100%; }
+  .cc-rcpt-tile, .cc-rcpt-thumb, .cc-rcpt-add { width:96px; }
+  .cc-rcpt-thumb, .cc-rcpt-add { height:96px; }
+  html.cc-touch .cc-rcpt-cam { width:96px; height:96px; }
+  /* Three 96px tiles do not fit a phone's gallery width, and Link is the rarest
+     of the three: it drops to a full-width 44px row under the two that add a
+     new file, instead of wrapping and making the row 124px taller. */
+  .cc-rcpt-link { flex:1 1 100%; width:auto; height:44px; flex-direction:row; gap:7px; }
+  .cc-rcpt-link i { font-size:17px; }
+  .cc-done-hint { margin-left:0; flex:1 1 100%; }
+  .cc-linkpanel-head { flex-wrap:wrap; }
+  .cc-linkpanel-head .cc-link-search { max-width:none; width:100%; }
+  .cc-pick-date { width:66px; }
+}

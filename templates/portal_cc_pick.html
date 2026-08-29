@@ -1,0 +1,21 @@
+{% extends 'portal_base.html' %}
+{% block title %}Your cards — Receipts{% endblock %}
+
+{% block content %}
+<div class="portal-card">
+    <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+        <div>
+            <div class="portal-title">Your cards</div>
+            <div class="portal-sub">Choose a card to upload receipts for.</div>
+        </div>
+        <a href="{{ url_for('cc_portal_logout') }}" class="admin-pill">Log out</a>
+    </div>
+</div>
+
+{% for c in cards %}
+<a href="{{ url_for('cc_portal_card', card_id=c.id) }}" class="portal-card d-flex justify-content-between align-items-center text-decoration-none" style="color:inherit;">
+    <span class="portal-title" style="font-size:16px;">{{ c.display_name or c.card_name }}</span>
+    <i class="bi bi-chevron-right portal-sub"></i>
+</a>
+{% endfor %}
+{% endblock %}

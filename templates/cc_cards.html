@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+{% block title %}Credit Cards — NORTHWIND{% endblock %}
+{% block page_title %}Credit Cards{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <p class="text-muted mb-0">
+        {{ cards|length }} card{{ '' if cards|length == 1 else 's' }} ·
+        click a card to see its line items and manage who can access it.
+    </p>
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="{{ url_for('cc_review') }}" class="btn btn-outline-primary">
+            <i class="bi bi-list-check me-1"></i> Xero Review
+        </a>
+        <a href="{{ url_for('cc_upload') }}" class="btn btn-primary">
+            <i class="bi bi-file-earmark-arrow-up me-1"></i> Upload Reports
+        </a>
+    </div>
+</div>
+
+{% if not cards %}
+<div class="text-center py-5">
+    <i class="bi bi-credit-card-2-front text-muted" style="font-size:3rem;"></i>
+    <h5 class="mt-3">No cards yet</h5>
+    <p class="text-muted">Upload a Xero credit-card reconciliation report and the card
+        is created automatically.</p>
+    <a href="{{ url_for('cc_upload') }}" class="btn btn-primary mt-2">
+        <i class="bi bi-file-earmark-arrow-up me-1"></i> Upload Reports
+    </a>
+</div>
+{% else %}
+<div class="row g-3">
+    {% for c in cards %}
+    <div class="col-12 col-md-6 col-xl-4">
+        <a href="{{ url_for('cc_card', card_id=c.id) }}" class="cc-tile">
+            <div class="cc-tile-head">
+                <div>
+                    <div class="cc-tile-name">{{ c.display_name or c.card_name }}</div>
+                    <div class="cc-tile-sub">{{ c.card_name }}</div>
+                </div>
+                <i class="bi bi-credit-card-2-front-fill cc-tile-icon"></i>
+            </div>
+            <div class="cc-tile-count {% if c.receipts_outstanding == 0 %}is-done{% endif %}">
+                <span class="cc-tile-number">{{ c.receipts_outstanding }}</span>
+                <span class="cc-tile-label">
+                    {% if c.receipts_outstanding == 0 %}all receipts in{% else %}item{{ '' if c.receipts_outstanding == 1 else 's' }} need a receipt{% endif %}
+                </span>
+            </div>
+            <div class="cc-tile-foot">
+                <div class="cc-tile-metrics" aria-label="Outstanding card tasks">
+                    <span title="Ready for the cardholder to send to finance"><i class="bi bi-send-check"></i> {{ c.ready_to_submit }} ready</span>
+                    <span title="Transactions still needing a confirmed Xero account"><i class="bi bi-tags"></i> {{ c.coding_missing }} coding</span>
+                    <span title="Receipts dropped off before their statement arrived"><i class="bi bi-inbox"></i> {{ c.inbox_count }} inbox</span>
+                    {% if c.ai_failed_count %}<span class="text-danger" title="Receipt AI jobs needing attention"><i class="bi bi-exclamation-triangle"></i> {{ c.ai_failed_count }} AI failed</span>{% endif %}
+                </div>
+                {% if c.user_count == 0 %}
+                <span class="text-warning"><i class="bi bi-exclamation-triangle-fill me-1"></i>No access set</span>
+                {% else %}
+                <span class="text-muted"><i class="bi bi-person-check me-1"></i>{{ c.user_count }} can access</span>
+                {% endif %}
+            </div>
+        </a>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if archived_cards %}
+<details class="mt-4">
+    <summary class="text-muted small" style="cursor:pointer;"><i class="bi bi-archive me-1"></i>Archived cards ({{ archived_cards|length }})</summary>
+    <div class="list-group mt-2">
+        {% for c in archived_cards %}
+        <div class="list-group-item d-flex justify-content-between align-items-center gap-2">
+            <span><strong>{{ c.display_name or c.card_name }}</strong><small class="text-muted d-block">{{ c.card_name }}</small></span>
+            <form method="post" action="{{ url_for('cc_card_set_active', card_id=c.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="active" value="1">
+                <button class="btn btn-sm btn-outline-primary"><i class="bi bi-arrow-counterclockwise me-1"></i>Restore</button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+</details>
+{% endif %}
+
+<div class="text-muted small mt-4">
+    <i class="bi bi-geo-alt me-1"></i>
+    Cardholders tag each transaction with a location. The list mirrors your
+    <a href="{{ url_for('stores_report') }}">stores</a> (plus HQ) — add a store there and
+    it appears in the picker automatically. Selection stays restricted to that managed list.
+</div>
+
+<style>
+.cc-tile {
+    display: flex; flex-direction: column; height: 100%;
+    background: #fff; border: 1px solid #e6e8ec; border-radius: 14px;
+    padding: 1.1rem 1.25rem; text-decoration: none; color: inherit;
+    transition: box-shadow .15s ease, transform .15s ease, border-color .15s ease;
+}
+.cc-tile:hover { box-shadow: 0 6px 22px rgba(20,30,60,.10); transform: translateY(-2px); border-color: #d3d7df; }
+.cc-tile-head { display: flex; justify-content: space-between; align-items: flex-start; gap: .5rem; }
+.cc-tile-name { font-weight: 700; font-size: 1.05rem; line-height: 1.2; }
+.cc-tile-sub { color: #8a909a; font-size: .8rem; margin-top: .15rem; }
+.cc-tile-icon { font-size: 1.4rem; color: #c3c8d2; }
+.cc-tile-count { margin: 1rem 0 .35rem; display: flex; align-items: baseline; gap: .5rem; }
+.cc-tile-number { font-size: 2rem; font-weight: 800; color: #d9534f; line-height: 1; }
+.cc-tile-count.is-done .cc-tile-number { color: #1f9d57; }
+.cc-tile-label { color: #6b7280; font-size: .9rem; }
+.cc-tile-foot { margin-top: auto; padding-top: .75rem; font-size: .82rem; border-top: 1px solid #f0f1f4; }
+.cc-tile-metrics { display:flex; flex-wrap:wrap; gap:.35rem .75rem; margin-bottom:.55rem; color:#5f6670; }
+.cc-tile-metrics span { display:inline-flex; align-items:center; gap:.25rem; }
+.cc-tile:focus-visible { outline:3px solid rgba(38,92,66,.35); outline-offset:3px; }
+@media (prefers-reduced-motion: reduce) { .cc-tile { transition:none; } .cc-tile:hover { transform:none; } }
+</style>
+{% endblock %}

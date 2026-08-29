@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Email — NORTHWIND{% endblock %}
+{% block page_title %}Email{% endblock %}
+
+{% block content %}
+<link href="{{ url_for('static', filename='admin-email.css') }}" rel="stylesheet">
+
+<div class="mail-grid">
+    <div class="mail-card">
+        <h2><i class="bi bi-envelope-fill"></i> Sending status</h2>
+
+        <p class="mail-state is-dry"><i class="bi bi-journal-text"></i>
+            <strong>This build does not send real email.</strong> Every message is
+            written to the application log and goes no further — no provider, no
+            credentials, no network.</p>
+
+        {% if mail.configured %}
+        <p class="mail-state is-ok"><i class="bi bi-check-circle-fill"></i>
+            Ready — messages are composed as <strong>{{ mail.sender }}</strong> and logged.</p>
+        {% else %}
+        <p class="mail-state is-todo"><i class="bi bi-exclamation-circle-fill"></i>
+            Not configured yet. Nothing will be composed until these are set:</p>
+        <ul class="mail-missing">
+            {% for name in mail.missing %}<li><code>{{ name }}</code></li>{% endfor %}
+        </ul>
+        {% endif %}
+
+        {% if mail.dry_run %}
+        <p class="mail-state is-dry"><i class="bi bi-eye-fill"></i>
+            <strong>Dry run is on.</strong> Even the log line is skipped; the message is
+            kept in memory for a caller to inspect. Unset <code>NW_MAIL_DRY_RUN</code>
+            to log sends again.</p>
+        {% endif %}
+
+        <dl class="mail-facts">
+            <dt>Transport</dt><dd>Console (application log)</dd>
+            <dt>Sender</dt><dd>{{ mail.sender or '—' }}{% if mail.sender_name %} (as “{{ mail.sender_name }}”){% endif %}</dd>
+            <dt>Always BCC</dt><dd>{{ mail.always_bcc or '—' }}</dd>
+        </dl>
+        <p class="mail-note">Recipients, subject and the address list are logged; the
+            message body is not. These messages carry staff names and what they owe,
+            and a log file is a less considered place to keep that than the database.</p>
+    </div>
+
+    <div class="mail-card">
+        <h2><i class="bi bi-send-fill"></i> Compose a test</h2>
+        <p class="mail-note">Nothing is sent automatically. This composes one test
+            message to the address below and logs it; cardholder reminders are separate
+            manual actions on each card’s page.</p>
+        <form method="post" action="{{ url_for('admin_email_test') }}">
+            <div class="mail-field">
+                <label for="mailTo">Send to</label>
+                <input type="email" id="mailTo" name="to" required
+                       placeholder="you@northwind-apparel.example"
+                       value="{{ sent or '' }}"
+                       {% if not mail.configured %}disabled{% endif %}>
+            </div>
+            <button class="mail-btn" type="submit" {% if not mail.configured %}disabled{% endif %}>
+                <i class="bi bi-send-fill"></i> Compose test email</button>
+            {% if not mail.configured %}
+            <p class="mail-note">Set <code>NW_MAIL_SENDER</code> first.</p>
+            {% endif %}
+        </form>
+    </div>
+</div>
+
+<div class="mail-card mail-setup">
+    <h2><i class="bi bi-diagram-3"></i> Adding a real transport</h2>
+    <p class="mail-note">Everything above the transport already works: the recipient
+        rules, the always-BCC merge, the dry-run valve, and the two features that send
+        (the test above, and the receipt-chase button on a card). Only delivery is
+        missing, and it is one function — <code>_deliver(message)</code> in
+        <code>northwind/services/mailer.py</code>, which receives the finished message
+        (<code>from</code>, <code>to</code>, <code>cc</code>, <code>bcc</code>,
+        <code>subject</code>, <code>html</code>, <code>text</code>,
+        <code>reply_to</code>) and raises <code>MailError</code> if it cannot deliver.
+        Point it at whichever provider the deployment has, and add that provider’s
+        credentials to <code>missing_config()</code> so this page keeps telling the
+        truth about what is still unset.</p>
+    <p class="mail-note">Sending statements through a third party means staff names and
+        balances transit someone else’s system, so a transport inside the company’s own
+        mail tenant is worth the extra setup where one is available.</p>
+</div>
+{% endblock %}

@@ -1,0 +1,242 @@
+{% extends 'cash_base.html' %}
+{% block title %}{{ store }} — Cash Recon{% endblock %}
+{% block topright %}
+<span style="font-size:13px;color:#615b5c;"><i class="bi bi-shop me-1"></i>{{ store }}</span>
+{% endblock %}
+
+{% block content %}
+
+{% if is_admin %}
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+    <a class="cr-navlink" href="{{ url_for('cash_summary', store=store, year=year, month=month) }}"><i class="bi bi-chevron-left"></i> Daily summary</a>
+    <a class="cr-navlink" href="{{ url_for('cash_home', year=year, month=month) }}"><i class="bi bi-grid-1x2-fill"></i> All stores</a>
+    <a class="cr-navlink" href="{{ url_for('cash_mj_preview', store=store, year=year, month=month) }}"><i class="bi bi-file-earmark-spreadsheet"></i> Expenses MJ</a>
+</div>
+{% endif %}
+
+<div class="cr-split">
+
+    <!-- LEFT: controls + details -->
+    <div class="cr-col-left">
+
+        <!-- Month nav + float summary -->
+        <div class="cr-card" style="padding:12px 16px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                <a class="cr-btn cr-btn-ghost" style="padding:5px 9px;" href="{{ url_for('cash_ledger', store=store, year=prev_year, month=prev_month) }}"><i class="bi bi-chevron-left"></i></a>
+                <div style="font-size:15px;font-weight:500;text-align:center;">{{ month_name }} {{ year }}</div>
+                <a class="cr-btn cr-btn-ghost" style="padding:5px 9px;" href="{{ url_for('cash_ledger', store=store, year=next_year, month=next_month) }}"><i class="bi bi-chevron-right"></i></a>
+            </div>
+
+            <!-- Opening / In / Out / Closing — compact rows -->
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:8px 0;margin-top:8px;border-top:0.5px solid rgba(28,28,28,0.08);">
+                <div class="cr-label" style="margin:0;">Opening float {% if not data.opening_explicit %}<span style="opacity:.6;text-transform:none;letter-spacing:0;">· carried over</span>{% endif %}</div>
+                <div style="font-size:14px;font-weight:600;">R {{ data.opening|rands }}</div>
+            </div>
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:7px 0;border-top:0.5px solid rgba(28,28,28,0.06);">
+                <div class="cr-label" style="margin:0;">Money in</div>
+                <div style="font-size:14px;font-weight:600;color:#2f5a37;">R {{ data.total_in|rands }}</div>
+            </div>
+            <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:7px 0;border-top:0.5px solid rgba(28,28,28,0.06);">
+                <div class="cr-label" style="margin:0;">Money out</div>
+                <div style="font-size:14px;font-weight:600;color:#823721;">R {{ data.total_out|rands }}</div>
+            </div>
+            <div class="cr-closing{% if data.closing < 0 %} neg{% endif %}">
+                <div class="cr-label">Closing float</div>
+                <div style="font-size:22px;font-weight:700;{% if data.closing < 0 %}color:#823721;{% endif %}">R {{ data.closing|rands }}</div>
+            </div>
+            {% if data.closing < 0 %}<div style="font-size:11px;color:#823721;text-align:right;margin-top:6px;">⚠ Float is negative — check your entries.</div>{% endif %}
+        </div>
+
+        {% if is_admin %}
+        <!-- Set opening float — ADMIN ONLY -->
+        <details class="cr-card" style="padding:14px 18px;">
+            <summary style="cursor:pointer;font-size:12.5px;color:#615b5c;list-style:none;display:flex;align-items:center;gap:6px;">
+                <i class="bi bi-pencil"></i> Adjust opening float
+            </summary>
+            <form method="post" action="{{ url_for('cash_set_opening', store=store, year=year, month=month) }}" style="margin-top:12px;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div style="display:flex;gap:10px;">
+                    <input class="cr-input" type="number" step="0.01" name="opening" value="{{ data.opening|rands }}" style="flex:1;">
+                    <button class="cr-btn cr-btn-ghost" type="submit" style="padding:11px 18px;">Set</button>
+                </div>
+                <div style="font-size:11.5px;color:#8a857d;margin-top:8px;">Leave alone to carry over last month's closing float automatically.</div>
+            </form>
+        </details>
+        {% endif %}
+
+        <!-- Add an entry -->
+        <div class="cr-card">
+            <p class="cr-label">Add entry</p>
+            <form method="post" action="{{ url_for('cash_add_entry', store=store, year=year, month=month) }}" id="addEntryForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <label class="cr-label" style="margin-bottom:6px;">1 · What is it?</label>
+                <input type="hidden" name="category_id" id="catId" value="">
+
+                <button type="button" class="cr-picker" id="pickerBtn" aria-expanded="false" aria-describedby="catError">
+                    <span id="pickerLabel">Choose a category…</span>
+                    <i class="bi bi-chevron-down chev"></i>
+                </button>
+                <div class="cr-fielderr" id="catError" role="alert" hidden></div>
+                <div id="dirBadge" hidden style="font-size:12px;font-weight:600;padding:5px 10px;border-radius:8px;margin:8px 0 0;"></div>
+
+                <div class="cr-panel" id="pickerPanel" hidden>
+                    <div class="cr-typebar" id="typeBar">
+                        {% set kinds = [('income','Money in'),('expense','Expenses'),('transfer','Banked'),('adjustment','Adjust')] %}
+                        {% for key, label in kinds %}
+                        {% if categories|selectattr('kind','equalto',key)|list %}
+                        <button type="button" class="cr-type{% if key == 'expense' %} active{% endif %}" data-kind="{{ key }}">{{ label }}</button>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                    <div class="cr-tilegrid" id="tileGrid">
+                        {% for c in categories %}
+                        {% set clean = c.name.split(' (')[0] %}
+                        <button type="button" class="cr-tile" data-kind="{{ c.kind }}" data-id="{{ c.id }}"
+                                data-name="{{ clean }}"
+                                data-dir="{{ 'in' if c.kind == 'income' else 'out' }}"
+                                data-hint="{{ c.reason_hint }}"
+                                {% if c.kind != 'expense' %}hidden{% endif %}>{{ clean }}</button>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <label class="cr-label" for="amountInput" style="margin-bottom:6px;">2 · How much &amp; when?</label>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                    <div style="position:relative;">
+                        <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#a8a39b;font-size:14px;">R</span>
+                        <input class="cr-input" type="number" step="0.01" min="0.01" name="amount" id="amountInput"
+                               inputmode="decimal" enterkeyhint="next" autocomplete="off"
+                               placeholder="0.00" required aria-describedby="amountError" style="padding-left:26px;">
+                    </div>
+                    <input class="cr-input" type="date" name="entry_date" id="dateInput"
+                           value="{{ today }}" min="{{ date_min }}" max="{{ date_max }}">
+                </div>
+                <div class="cr-fielderr" id="amountError" role="alert" hidden></div>
+
+                <label class="cr-label" id="noteLabel" for="noteInput" style="margin:10px 0 6px;">3 · Reason <span style="text-transform:none;letter-spacing:0;color:#823721;">(required)</span></label>
+                <input class="cr-input" type="text" name="note" id="noteInput" placeholder="Reason for this entry"
+                       enterkeyhint="done" autocomplete="off" required aria-describedby="noteError">
+                <div class="cr-fielderr" id="noteError" role="alert" hidden></div>
+
+                <button class="cr-btn" type="submit" id="addBtn" style="width:100%;margin-top:12px;"><i class="bi bi-plus-lg"></i> Add to ledger</button>
+                <p class="cr-draftnote" id="draftNote" hidden><i class="bi bi-arrow-counterclockwise"></i> <span id="draftNoteText">Your unsaved entry was brought back.</span></p>
+            </form>
+        </div>
+
+    </div>
+
+    <!-- RIGHT: the sheet -->
+    <div class="cr-card" style="padding:6px 4px;margin-bottom:16px;">
+        {% if data.entries %}
+        <div class="cr-sheet-scroll">
+        <table class="cr-ledger">
+            <thead>
+                <tr>
+                    <th style="text-align:left;">Date</th>
+                    <th style="text-align:left;">Description</th>
+                    <th style="text-align:right;">In</th>
+                    <th style="text-align:right;">Out</th>
+                    <th style="text-align:right;">Balance</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set ns = namespace(day='') %}
+                {% for e in data.entries %}
+                {% if e.day != ns.day %}
+                <tr class="cr-daysep"><td colspan="6"><span>{{ e.day_label }}</span></td></tr>
+                {% set ns.day = e.day %}
+                {% endif %}
+                {% set dotclass = 'cr-dot-in' if e.kind == 'income' else 'cr-dot-out' if e.kind == 'expense' else 'cr-dot-transfer' if e.kind == 'transfer' else 'cr-dot-adjust' if e.kind == 'adjustment' else '' %}
+                {# data-line/-note identify this entry exactly as the add form posted
+                   it (category · cents · day · reason), so a restored draft can tell
+                   it already landed instead of inviting a duplicate — cash-ledger.js. #}
+                <tr class="cr-row" data-line="{{ e.category_id }}|{{ e.amount_cents }}|{{ e.date[0:10] }}"
+                    data-note="{{ e.note or '' }}">
+                    <td style="white-space:nowrap;color:#615b5c;">{{ e.date[8:10] }}/{{ e.date[5:7] }}</td>
+                    <td>
+                        <div class="cr-desc">
+                            <span class="cr-dot {{ dotclass }}"></span>
+                            <span>
+                                <span style="font-weight:500;">{{ e.description }}</span>
+                                {% if e.note %}<span style="display:block;font-size:11.5px;color:#8a857d;">{{ e.note }}</span>{% endif %}
+                            </span>
+                        </div>
+                    </td>
+                    <td class="cr-num cr-in">{% if e.income is not none %}R {{ e.income|rands }}{% else %}<span class="cr-empty">—</span>{% endif %}</td>
+                    <td class="cr-num cr-out">{% if e.expense is not none %}R {{ e.expense|rands }}{% else %}<span class="cr-empty">—</span>{% endif %}</td>
+                    <td class="cr-num cr-bal"{% if e.running < 0 %} style="color:#823721;"{% endif %}>R {{ e.running|rands }}</td>
+                    <td class="cr-rowact">
+                        {% if is_admin %}
+                        <button type="button" class="cr-iconbtn" title="Edit" aria-label="Edit this entry" data-edit-entry="{{ e.id }}"><i class="bi bi-pencil"></i></button>
+                        {% endif %}
+                        <form method="post" action="{{ url_for('cash_delete_entry', entry_id=e.id) }}" data-confirm="Remove this entry?" style="display:inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="store" value="{{ store }}">
+                            <input type="hidden" name="year" value="{{ year }}">
+                            <input type="hidden" name="month" value="{{ month }}">
+                            <button type="submit" class="cr-iconbtn" title="Remove" aria-label="Remove this entry"><i class="bi bi-x-lg"></i></button>
+                        </form>
+                    </td>
+                </tr>
+                {% if is_admin %}
+                <!-- Inline admin edit form for this entry -->
+                <tr id="editRow-{{ e.id }}" hidden style="background:#fdfcfb;">
+                    <td colspan="6" style="padding:12px 14px;border-top:0.5px solid rgba(28,28,28,0.10);">
+                        <form method="post" action="{{ url_for('cash_edit_entry', entry_id=e.id) }}" class="cr-editform">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="year" value="{{ year }}">
+                            <input type="hidden" name="month" value="{{ month }}">
+                            <div style="display:grid;grid-template-columns:1.4fr 0.9fr 1fr;gap:8px;margin-bottom:8px;">
+                                <select class="cr-select" name="category_id" required>
+                                    <option value="" disabled {% if not (categories|selectattr('name','equalto',e.description)|list) %}selected{% endif %}>Choose category…</option>
+                                    {% for c in categories %}
+                                    {% set clean = c.name.split(' (')[0] %}
+                                    <option value="{{ c.id }}" {% if clean == e.description or c.name == e.description %}selected{% endif %}>{{ clean }} ({{ c.kind }})</option>
+                                    {% endfor %}
+                                </select>
+                                <div style="position:relative;">
+                                    <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#a8a39b;font-size:13px;">R</span>
+                                    <input class="cr-input" type="number" step="0.01" min="0.01" name="amount" required
+                                           inputmode="decimal" autocomplete="off"
+                                           value="{{ '%.2f'|format(e.income if e.income is not none else e.expense) }}" style="padding-left:24px;">
+                                </div>
+                                <input class="cr-input" type="date" name="entry_date" value="{{ e.date[0:10] }}" required>
+                            </div>
+                            <input class="cr-input" type="text" name="note" required placeholder="Reason (required)"
+                                   value="{{ e.note or '' }}" style="margin-bottom:8px;">
+                            <div style="display:flex;gap:8px;justify-content:flex-end;">
+                                <button type="button" class="cr-btn cr-btn-ghost" style="padding:8px 14px;" data-edit-entry="{{ e.id }}">Cancel</button>
+                                <button type="submit" class="cr-btn" style="padding:8px 14px;"><i class="bi bi-check-lg"></i> Save</button>
+                            </div>
+                        </form>
+                    </td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr style="border-top:0.5px solid rgba(28,28,28,0.14);font-weight:600;">
+                    <td colspan="2" style="padding:10px;">Closing</td>
+                    <td class="cr-num cr-in" style="padding:10px;">R {{ data.total_in|rands }}</td>
+                    <td class="cr-num cr-out" style="padding:10px;">R {{ data.total_out|rands }}</td>
+                    <td class="cr-num" style="padding:10px;{% if data.closing < 0 %}color:#823721;{% endif %}">R {{ data.closing|rands }}</td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+        </div>
+        {% else %}
+        <div style="padding:48px 28px;text-align:center;color:#8a857d;font-size:14px;">
+            <i class="bi bi-receipt" style="font-size:26px;opacity:.5;"></i>
+            <div style="margin-top:8px;">No entries yet this month. Add the first one on the left.</div>
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+
+<script src="{{ url_for('static', filename='cash-ledger.js') }}"></script>
+
+{% endblock %}

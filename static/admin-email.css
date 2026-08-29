@@ -1,0 +1,45 @@
+.mail-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr));
+    gap:16px; align-items:start; margin-bottom:16px; }
+.mail-card { padding:22px; border-radius:14px; background:var(--bg-elevated);
+    border:1px solid var(--border); }
+.mail-card h2 { display:flex; align-items:center; gap:8px; margin:0 0 12px;
+    font-size:16px; font-weight:700; color:var(--text-primary); }
+.mail-card h2 i { opacity:.6; }
+.mail-note { margin:10px 0 0; font-size:12px; color:var(--text-secondary); line-height:1.55; }
+.mail-note code, .mail-missing code {
+    padding:1px 5px; border-radius:5px; background:var(--bg-base);
+    border:1px solid var(--border); font-size:11.5px; }
+
+.mail-state { display:flex; align-items:flex-start; gap:8px; margin:0 0 10px;
+    font-size:13px; line-height:1.5; }
+.mail-state i { margin-top:2px; }
+.mail-state.is-ok { color:#15803d; }
+.mail-state.is-todo { color:#c47f1a; }
+.mail-state.is-dry { color:var(--text-secondary); }
+
+.mail-missing { margin:0 0 12px; padding-left:20px; font-size:12.5px; color:var(--text-secondary); }
+.mail-missing li { margin-bottom:3px; }
+
+.mail-facts { display:grid; grid-template-columns:auto 1fr; gap:6px 14px;
+    margin:14px 0 0; padding-top:14px; border-top:1px solid var(--border); font-size:12.5px; }
+.mail-facts dt { color:var(--text-secondary); font-weight:600; }
+.mail-facts dd { margin:0; color:var(--text-primary); overflow-wrap:anywhere; }
+
+.mail-field { margin-bottom:14px; }
+.mail-field label { display:block; margin-bottom:5px; font-size:11px; font-weight:600;
+    letter-spacing:.04em; text-transform:uppercase; color:var(--text-secondary); }
+.mail-field input { width:100%; padding:10px 12px; border-radius:9px;
+    border:1px solid var(--border); background:var(--bg-base);
+    color:var(--text-primary); font-size:14px; }
+.mail-field input:focus { outline:none; border-color:var(--accent); }
+.mail-field input:disabled { opacity:.55; cursor:not-allowed; }
+
+.mail-btn { display:inline-flex; align-items:center; gap:7px; min-height:42px;
+    padding:10px 20px; border:none; border-radius:9px; background:var(--accent,#534877);
+    color:#fff; font-size:14px; font-weight:600; cursor:pointer; transition:filter .15s; }
+.mail-btn:hover:not(:disabled) { filter:brightness(1.08); }
+.mail-btn:disabled { opacity:.5; cursor:not-allowed; }
+
+/* The setup card is one full-width block under the two status cards, so its prose
+   wants a measure rather than the whole viewport. */
+.mail-setup .mail-note { max-width:78ch; }

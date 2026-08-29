@@ -1,0 +1,99 @@
+{% extends 'cash_base.html' %}
+{% block title %}{{ store }} — Daily summary{% endblock %}
+{% block topright %}
+<span style="font-size:13px;color:#615b5c;"><i class="bi bi-shop me-1"></i>{{ store }}</span>
+{% endblock %}
+
+{% block content %}
+
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+    <a class="cr-navlink" href="{{ url_for('cash_home', year=year, month=month) }}"><i class="bi bi-chevron-left"></i> All stores</a>
+</div>
+
+<!-- Month nav + float summary -->
+<div class="cr-card" style="padding:12px 16px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <a class="cr-btn cr-btn-ghost" style="padding:5px 9px;" href="{{ url_for('cash_summary', store=store, year=prev_year, month=prev_month) }}"><i class="bi bi-chevron-left"></i></a>
+        <div style="font-size:15px;font-weight:500;text-align:center;">{{ store }} · {{ month_name }} {{ year }}</div>
+        <a class="cr-btn cr-btn-ghost" style="padding:5px 9px;" href="{{ url_for('cash_summary', store=store, year=next_year, month=next_month) }}"><i class="bi bi-chevron-right"></i></a>
+    </div>
+
+    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:8px 0;margin-top:8px;border-top:0.5px solid rgba(28,28,28,0.08);">
+        <div class="cr-label" style="margin:0;">Opening float</div>
+        <div style="font-size:14px;font-weight:600;">R {{ data.opening|rands }}</div>
+    </div>
+    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:7px 0;border-top:0.5px solid rgba(28,28,28,0.06);">
+        <div class="cr-label" style="margin:0;">Money in</div>
+        <div style="font-size:14px;font-weight:600;color:#2f5a37;">R {{ data.total_in|rands }}</div>
+    </div>
+    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:7px 0;border-top:0.5px solid rgba(28,28,28,0.06);">
+        <div class="cr-label" style="margin:0;">Expenses</div>
+        <div style="font-size:14px;font-weight:600;color:#823721;">R {{ data.total_expense|rands }}</div>
+    </div>
+    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:7px 0;border-top:0.5px solid rgba(28,28,28,0.06);">
+        <div class="cr-label" style="margin:0;">Banked</div>
+        <div style="font-size:14px;font-weight:600;color:#615b5c;">R {{ data.total_banked|rands }}</div>
+    </div>
+    {% if data.total_adjust %}
+    <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:7px 0;border-top:0.5px solid rgba(28,28,28,0.06);">
+        <div class="cr-label" style="margin:0;">Adjustments</div>
+        <div style="font-size:14px;font-weight:600;color:#823721;">R {{ data.total_adjust|rands }}</div>
+    </div>
+    {% endif %}
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0 2px;border-top:0.5px solid rgba(28,28,28,0.14);">
+        <div class="cr-label" style="margin:0;color:#615b5c;">Closing float</div>
+        <div style="font-size:22px;font-weight:700;{% if data.closing < 0 %}color:#823721;{% endif %}">R {{ data.closing|rands }}</div>
+    </div>
+    <div style="margin-top:12px;text-align:right;">
+        <a class="cr-btn" href="{{ url_for('cash_ledger', store=store, year=year, month=month) }}"><i class="bi bi-journal-text"></i> View full journal</a>
+    </div>
+</div>
+
+<!-- Per-day rollup -->
+<div class="cr-card" style="padding:6px 4px;">
+    {% if data.days %}
+    <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+            <tr style="color:#a8a39b;font-size:11px;text-transform:uppercase;letter-spacing:.06em;">
+                <th style="text-align:left;padding:8px 10px;">Date</th>
+                <th style="text-align:right;padding:8px 10px;">Opening</th>
+                <th style="text-align:right;padding:8px 10px;">In</th>
+                <th style="text-align:right;padding:8px 10px;">Expenses</th>
+                <th style="text-align:right;padding:8px 10px;">Banked</th>
+                <th style="text-align:right;padding:8px 10px;">Adjust</th>
+                <th style="text-align:right;padding:8px 10px;">Closing</th>
+                <th style="text-align:right;padding:8px 10px;">#</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for day in data.days %}
+            <tr style="border-top:0.5px solid rgba(28,28,28,0.07);cursor:pointer;"
+                data-cash-day-url="{{ url_for('cash_day', store=store, date=day.date) }}"
+                tabindex="0" role="link" aria-label="Open cash details for {{ day.date }}">
+                <td style="padding:10px;white-space:nowrap;">
+                    <a href="{{ url_for('cash_day', store=store, date=day.date) }}"
+                       style="text-decoration:none;color:inherit;font-weight:500;">{{ day.date[8:10] }}/{{ day.date[5:7] }}</a>
+                </td>
+                <td style="padding:10px;text-align:right;white-space:nowrap;color:#615b5c;">R {{ day.day_opening|rands }}</td>
+                <td style="padding:10px;text-align:right;white-space:nowrap;color:#2f5a37;">R {{ day['in']|rands }}</td>
+                <td style="padding:10px;text-align:right;white-space:nowrap;color:#823721;">R {{ day.expense|rands }}</td>
+                <td style="padding:10px;text-align:right;white-space:nowrap;color:#615b5c;">R {{ day.banked|rands }}</td>
+                <td style="padding:10px;text-align:right;white-space:nowrap;color:#823721;">{% if day.adjust %}R {{ day.adjust|rands }}{% else %}<span style="color:#c9c4bc;">—</span>{% endif %}</td>
+                <td style="padding:10px;text-align:right;white-space:nowrap;font-weight:600;{% if day.day_closing < 0 %}color:#823721;{% endif %}">R {{ day.day_closing|rands }}</td>
+                <td style="padding:10px;text-align:right;white-space:nowrap;color:#8a857d;">{{ day.count }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div style="padding:48px 28px;text-align:center;color:#8a857d;font-size:14px;">
+        <i class="bi bi-calendar-x" style="font-size:26px;opacity:.5;"></i>
+        <div style="margin-top:8px;">No entries this month.</div>
+    </div>
+    {% endif %}
+</div>
+
+<script src="{{ url_for('static', filename='cash-summary.js') }}"></script>
+{% endblock %}

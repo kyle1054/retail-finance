@@ -1,0 +1,236 @@
+{% extends 'cash_base.html' %}
+{% block title %}All stores — Cash Recon{% endblock %}
+{% block topright %}
+<span class="cr-context"><i class="bi bi-grid-1x2-fill"></i>All stores</span>
+{% endblock %}
+
+{% block content %}
+
+<header class="cash-page-head">
+    <div>
+        <p class="cash-kicker">Retail operations</p>
+        <h1>Cash position</h1>
+        <p>See where stores have reported, where finance needs to intervene, and how cash moved across the selected period.</p>
+    </div>
+    <nav class="cash-page-tools" aria-label="Cash administration">
+        {% if session.admin_role in (none, 'super') %}
+        <a class="cr-navlink" href="{{ url_for('admin_cash_dashboard') }}"><i class="bi bi-speedometer2"></i> Dashboard</a>
+        {% endif %}
+        <a class="cr-navlink" href="{{ url_for('cash_sales_preview', year=cash_sales_year, month=cash_sales_month) }}"><i class="bi bi-cash-stack"></i> Cash sales &amp; Xero</a>
+        <a class="cr-navlink" href="{{ url_for('cash_xero_setup') }}"><i class="bi bi-sliders"></i> Xero setup</a>
+    </nav>
+</header>
+
+<section class="cash-period-panel" aria-labelledby="cashPeriodTitle">
+    <div class="cash-period-nav">
+        <a class="cash-period-step" href="{{ url_for('cash_home', start=prev_start, end=prev_end) }}" aria-label="Previous period">
+            <i class="bi bi-chevron-left"></i><span>Previous</span>
+        </a>
+        <div class="cash-period-current">
+            <span>Reporting period</span>
+            <h2 id="cashPeriodTitle">{{ range_label }}</h2>
+            <small>All stores</small>
+        </div>
+        <a class="cash-period-step is-next" href="{{ url_for('cash_home', start=next_start, end=next_end) }}" aria-label="Next period">
+            <span>Next</span><i class="bi bi-chevron-right"></i>
+        </a>
+    </div>
+
+    <div class="cash-period-actions">
+        <div class="cash-presets" aria-label="Quick reporting periods">
+            <button type="button" class="preset" data-preset="this-month">This month</button>
+            <button type="button" class="preset" data-preset="last-month">Last month</button>
+            <button type="button" class="preset" data-preset="last-7">Last 7 days</button>
+            <button type="button" class="preset" data-preset="this-year">This year</button>
+        </div>
+        <details class="cash-custom-range">
+            <summary><i class="bi bi-funnel"></i> Custom range <i class="bi bi-chevron-down"></i></summary>
+            <form method="get" action="{{ url_for('cash_home') }}" id="rangeForm">
+                <div>
+                    <label class="cr-label" for="cashRangeStart">From</label>
+                    <input class="cr-input" id="cashRangeStart" type="date" name="start" value="{{ start }}">
+                </div>
+                <div>
+                    <label class="cr-label" for="cashRangeEnd">To</label>
+                    <input class="cr-input" id="cashRangeEnd" type="date" name="end" value="{{ end }}">
+                </div>
+                <button class="cr-btn" type="submit">Apply dates</button>
+            </form>
+        </details>
+    </div>
+</section>
+
+<section class="cash-status-strip" aria-label="Cash reporting status">
+    <div class="cash-status-item{% if attention %} is-attention{% endif %}">
+        <span>Needs attention</span>
+        <strong>{{ attention|length }}</strong>
+        <small>{{ 'Store exceptions to review' if attention else 'No open store flags' }}</small>
+    </div>
+    <div class="cash-status-item">
+        <span>Stores in view</span>
+        <strong>{{ rows|length }}</strong>
+        <small>Across {{ range_label }}</small>
+    </div>
+    <div class="cash-status-item is-entries">
+        <span>Entries captured</span>
+        <strong>{{ totals.entry_count if totals else 0 }}</strong>
+        <small>Ledger movements in range</small>
+    </div>
+    {% if totals %}
+    <div class="cash-status-item is-closing">
+        <span>Closing cash</span>
+        <strong>R {{ totals.closing|rands }}</strong>
+        <small>Combined store position</small>
+    </div>
+    {% endif %}
+</section>
+
+{% if attention %}
+<details class="cash-attention">
+    <summary>
+        <span class="cash-attention-icon"><i class="bi bi-exclamation-triangle"></i></span>
+        <span><strong>{{ attention|length }} store{{ '' if attention|length == 1 else 's' }} need attention</strong><small>Open the exception queue to see why.</small></span>
+        <i class="bi bi-chevron-down cash-attention-chevron"></i>
+    </summary>
+    <div class="cash-attention-list">
+        {% for item in attention %}
+        <a href="{{ url_for('cash_summary', store=item.store, year=cash_sales_year, month=cash_sales_month) }}">
+            <span><strong>{{ item.store }}</strong><small>{{ item.reasons|join(' · ') }}</small></span>
+            <i class="bi bi-arrow-right"></i>
+        </a>
+        {% endfor %}
+    </div>
+</details>
+{% endif %}
+
+<section class="cash-ledger-section" aria-labelledby="cashStoresTitle">
+    <div class="cash-section-head">
+        <div>
+            <p class="cash-kicker">Store ledger</p>
+            <h2 id="cashStoresTitle">All store positions</h2>
+            <p>Find a store, review its movement, or open its full reconciliation.</p>
+        </div>
+        <div class="cash-section-actions">
+            {# No store picker here: every row below already carries its own
+               "Open recon" link, and the picker duplicated all of those store
+               names in a second control that silently dropped the chosen date
+               range on the way through. #}
+            <details class="cash-export-menu">
+                <summary class="cr-btn cr-btn-ghost"><i class="bi bi-file-earmark-spreadsheet"></i> Export reports <i class="bi bi-chevron-down"></i></summary>
+                <div>
+                    <a href="{{ url_for('cash_overview_export', start=start, end=end) }}"><i class="bi bi-file-earmark-spreadsheet"></i><span><strong>Overview</strong><small>All store totals in Excel</small></span></a>
+                    <a href="{{ url_for('cash_category_matrix_export', start=start, end=end) }}"><i class="bi bi-grid-3x3-gap"></i><span><strong>Expense matrix</strong><small>Categories by store in Excel</small></span></a>
+                    <a href="{{ url_for('cash_mj_all_export', year=cash_sales_year, month=cash_sales_month) }}"><i class="bi bi-file-zip"></i><span><strong>Expense MJs</strong><small>{{ range_label }} journal pack</small></span></a>
+                    <a href="{{ url_for('cash_sales_preview', year=cash_sales_year, month=cash_sales_month) }}"><i class="bi bi-cash-stack"></i><span><strong>Cash-sales Xero MJ</strong><small>{{ cash_sales_label }} journal &amp; Shopify check</small></span></a>
+                </div>
+            </details>
+        </div>
+    </div>
+
+    <div class="cash-store-surface">
+    {% if rows %}
+    <div class="cash-ledger-toolbar" role="search" aria-label="Filter store positions">
+        <div class="cash-store-search">
+            <label for="cashStoreSearch"><i class="bi bi-search" aria-hidden="true"></i><span class="visually-hidden">Search stores</span></label>
+            <input id="cashStoreSearch" type="search" placeholder="Search stores…" autocomplete="off" aria-label="Search stores" data-cash-store-search>
+        </div>
+        <div class="cash-movement-filters" aria-label="Movement filters">
+            <button type="button" class="is-active" data-cash-store-filter="all" aria-pressed="true">All</button>
+            <button type="button" data-cash-store-filter="attention" aria-pressed="false">Needs attention</button>
+            <button type="button" data-cash-store-filter="in" aria-pressed="false">Cash in</button>
+            <button type="button" data-cash-store-filter="out" aria-pressed="false">Cash out</button>
+            <button type="button" data-cash-store-filter="empty" aria-pressed="false">No entries</button>
+        </div>
+        <p class="cash-filter-result" data-cash-filter-result aria-live="polite">Showing all {{ rows|length }} stores</p>
+    </div>
+    <div class="cash-overview-wrap">
+    <table id="ovTable">
+        <thead>
+            <tr>
+                <th>Store</th>
+                <th class="cash-num">Opening</th>
+                <th class="cash-num">In</th>
+                <th class="cash-num">Expenses</th>
+                <th class="cash-num">Banked</th>
+                <th class="cash-num">Adjust</th>
+                <th class="cash-num">Closing</th>
+                <th class="cash-num">Entries</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in rows %}
+            <tr class="store-row{% if not r.entry_count %} has-no-entries{% endif %}" data-loaded="0"
+                data-store-name="{{ r.store|lower }}"
+                data-has-in="{{ 'true' if r.total_in else 'false' }}"
+                data-has-out="{{ 'true' if r.total_expense or r.total_banked else 'false' }}"
+                data-needs-attention="{{ 'true' if r.store in attention_stores else 'false' }}"
+                data-has-entries="{{ 'true' if r.entry_count else 'false' }}"
+                data-url="{{ url_for('cash_store_days', store=r.store, start=start, end=end) }}">
+                <td data-label="Store">
+                    <div class="cash-store-cell">
+                        <button type="button" class="cash-disclosure"
+                                data-cash-store-toggle aria-expanded="false"
+                                aria-controls="store-detail-{{ loop.index }}"
+                                aria-label="Show daily breakdown for {{ r.store }}">
+                            <i class="bi bi-chevron-right chev" aria-hidden="true"></i>
+                            <span><strong>{{ r.store }}</strong><small>{{ 'No entries' if not r.entry_count else 'Reported' }}</small></span>
+                        </button>
+                        <a class="cash-open-recon" href="{{ url_for('cash_summary', store=r.store, year=cash_sales_year, month=cash_sales_month) }}" aria-label="Open {{ r.store }} cash reconciliation">Open recon <i class="bi bi-arrow-right" aria-hidden="true"></i></a>
+                    </div>
+                </td>
+                <td class="cash-num is-muted" data-label="Opening">R {{ r.opening|rands }}</td>
+                <td class="cash-num is-in" data-label="In">R {{ r.total_in|rands }}</td>
+                <td class="cash-num is-out" data-label="Expenses">R {{ r.total_expense|rands }}</td>
+                <td class="cash-num is-muted" data-label="Banked">R {{ r.total_banked|rands }}</td>
+                <td class="cash-num is-out" data-label="Adjust">{% if r.total_adjust %}R {{ r.total_adjust|rands }}{% else %}<span class="cash-dash">—</span>{% endif %}</td>
+                <td class="cash-num is-closing{% if r.closing < 0 %} is-negative{% endif %}" data-label="Closing">R {{ r.closing|rands }}</td>
+                <td class="cash-num is-count" data-label="Entries">{{ r.entry_count }}</td>
+            </tr>
+            <tr class="expand-row" id="store-detail-{{ loop.index }}" hidden>
+                <td colspan="8">
+                    <div class="expand-body"><div class="cash-loading">Loading…</div></div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        {% if totals %}
+        <tfoot>
+            <tr>
+                <td>All stores (unfiltered)</td>
+                <td class="cash-num">R {{ totals.opening|rands }}</td>
+                <td class="cash-num is-in">R {{ totals.total_in|rands }}</td>
+                <td class="cash-num is-out">R {{ totals.total_expense|rands }}</td>
+                <td class="cash-num">R {{ totals.total_banked|rands }}</td>
+                <td class="cash-num is-out">R {{ totals.total_adjust|rands }}</td>
+                <td class="cash-num">R {{ totals.closing|rands }}</td>
+                <td class="cash-num is-count">{{ totals.entry_count }}</td>
+            </tr>
+        </tfoot>
+        {% endif %}
+    </table>
+    </div>
+    {% if totals %}
+    <dl class="cash-mobile-totals" aria-label="All stores totals">
+        <div><dt>Cash in</dt><dd>R {{ totals.total_in|rands }}</dd></div>
+        <div><dt>Expenses</dt><dd>R {{ totals.total_expense|rands }}</dd></div>
+        <div><dt>Closing</dt><dd>R {{ totals.closing|rands }}</dd></div>
+        <div><dt>Entries</dt><dd>{{ totals.entry_count }}</dd></div>
+    </dl>
+    {% endif %}
+    <div class="cash-table-note">
+        <i class="bi bi-info-circle"></i> Expand a store for daily movement, or choose Open recon for the full month workspace.
+    </div>
+    {% else %}
+    <div class="cash-empty">
+        <i class="bi bi-shop"></i>
+        <strong>No stores to show</strong>
+        <span>Try another reporting period.</span>
+    </div>
+    {% endif %}
+    </div>
+</section>
+
+<span id="cashOverviewConfig" hidden data-base-url="{{ url_for('cash_home') }}"></span>
+<script src="{{ url_for('static', filename='cash-overview.js') }}"></script>
+
+{% endblock %}

@@ -1,0 +1,819 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard — Northwind Deductions{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="dashboard-refresh">
+
+<!-- Task-first monthly status: the dashboard opens with the work finance needs
+     to finish, while the long-term portfolio counts stay secondary below. -->
+<section class="ops-hero" aria-labelledby="payrollStatusTitle">
+    <div class="ops-hero-main">
+        <div class="flex-grow-1">
+            <div class="eyebrow">Current payroll · {{ now.strftime('%B %Y') }}</div>
+            <h1 id="payrollStatusTitle">
+                {% if pending_tick_count %}{{ pending_tick_count }} employee{{ 's' if pending_tick_count != 1 }} still need attention
+                {% else %}Monthly deductions are ready{% endif %}
+            </h1>
+            <p class="ops-hero-copy">
+                {% if pending_tick_count %}
+                Continue the monthly run, resolve outstanding deductions, then export and lock the period.
+                {% else %}
+                Every scheduled deduction has been processed. Review the export before locking the period.
+                {% endif %}
+            </p>
+            <ol class="payroll-journey" aria-label="Monthly payroll workflow">
+                <li class="done">
+                    <span class="journey-number"><i class="bi bi-check-all"></i></span>
+                    <span><strong>Review</strong><small>Check the month</small></span>
+                </li>
+                <li class="{{ 'current' if pending_tick_count else 'done' }}">
+                    <span class="journey-number">{{ '2' if pending_tick_count else '' }}{% if not pending_tick_count %}<i class="bi bi-check-all"></i>{% endif %}</span>
+                    <span><strong>Tick</strong><small>Process deductions</small></span>
+                </li>
+                <li class="{{ 'current' if not pending_tick_count else '' }}">
+                    <span class="journey-number">3</span>
+                    <span><strong>Export</strong><small>Prepare payroll</small></span>
+                </li>
+                <li>
+                    <span class="journey-number">4</span>
+                    <span><strong>Lock</strong><small>Close the period</small></span>
+                </li>
+            </ol>
+            <div class="ops-progress" role="progressbar" aria-valuenow="{{ payroll_progress }}" aria-valuemin="0" aria-valuemax="100" aria-label="Payroll completion">
+                <span style="width:{{ payroll_progress }}%"></span>
+            </div>
+            <div class="d-flex justify-content-between gap-3 text-secondary-soft" style="font-size:12px;">
+                <span>{{ completed_tick_count }} of {{ outstanding_ticks|length }} employees processed</span>
+                <strong>{{ payroll_progress }}%</strong>
+            </div>
+        </div>
+        <a href="{{ url_for('monthly_view', year=now.year, month=now.month) }}" class="btn btn-primary px-4">
+            <span>{{ 'Continue payroll' if pending_tick_count else 'Review payroll' }}</span>
+            <i class="bi bi-arrow-right"></i>
+        </a>
+    </div>
+    <div class="ops-hero-side">
+        <div>
+            <div class="ops-mini-value">{{ pending_tick_count }}</div>
+            <div class="ops-mini-label">Pending employees</div>
+        </div>
+        <div>
+            <div class="ops-mini-value">{{ payroll_ready_store_count }}/{{ payroll_store_count }}</div>
+            <div class="ops-mini-label">Stores complete</div>
+        </div>
+        <div>
+            <div class="ops-mini-value">R {{ "{:,.0f}".format(stats.total_outstanding) }}</div>
+            <div class="ops-mini-label">All-plan balance</div>
+        </div>
+        <div>
+            <div class="ops-mini-value">{{ layby_cap_violators|length }}</div>
+            <div class="ops-mini-label">Plan exceptions</div>
+        </div>
+    </div>
+</section>
+
+<!-- The operational queue follows the workflow immediately; portfolio metrics and
+     long-term analytics sit below it. -->
+<section class="dashboard-action-section" aria-labelledby="actionQueueTitle">
+    <div class="dashboard-section-heading">
+        <div>
+            <div class="eyebrow">Needs attention</div>
+            <h2 id="actionQueueTitle">Action queue</h2>
+        </div>
+        <a href="{{ url_for('monthly_view', year=page_year, month=page_month) }}" class="dashboard-text-link">
+            Open monthly payroll <i class="bi bi-arrow-right"></i>
+        </a>
+    </div>
+    <div class="dashboard-action-grid">
+        <div class="action-queue-panel">
+            <div class="action-panel-header">
+                <div>
+                    <span class="action-panel-kicker">Outstanding deductions</span>
+                    <h3>{{ pending_tick_count }} employee{{ 's' if pending_tick_count != 1 }} remaining</h3>
+                </div>
+                <span class="action-count">{{ payroll_progress }}% complete</span>
+            </div>
+            {% if pending_tick_preview %}
+            <div class="action-queue-list">
+                {% for item in pending_tick_preview %}
+                <div class="action-queue-row">
+                    <div class="action-queue-person">
+                        <span class="action-avatar" aria-hidden="true">{{ item.employee.full_name[:1] }}</span>
+                        <div>
+                            <a href="{{ url_for('employee_detail', emp_id=item.employee.id) }}">{{ item.employee.full_name }}</a>
+                            <span>{{ item.employee.current_store }}</span>
+                        </div>
+                    </div>
+                    <strong>R {{ "%.2f"|format(item.total) }}</strong>
+                    <a href="{{ url_for('monthly_view', year=page_year, month=page_month, store=item.employee.current_store) }}"
+                       class="queue-action" aria-label="Open {{ item.employee.current_store }} in monthly payroll">
+                        Review <i class="bi bi-arrow-right"></i>
+                    </a>
+                </div>
+                {% endfor %}
+            </div>
+            {% if pending_tick_count > pending_tick_preview|length %}
+            <a href="{{ url_for('monthly_view', year=page_year, month=page_month) }}" class="action-queue-footer">
+                Continue all {{ pending_tick_count }} pending deductions <i class="bi bi-arrow-right"></i>
+            </a>
+            {% endif %}
+            {% else %}
+            <div class="dashboard-clear-state">
+                <i class="bi bi-check-circle-fill"></i>
+                <div><strong>All scheduled deductions are processed.</strong><span>Review the payroll export before locking the month.</span></div>
+            </div>
+            {% endif %}
+        </div>
+
+        <aside class="exception-panel" aria-labelledby="exceptionPanelTitle">
+            <div class="action-panel-header">
+                <div>
+                    <span class="action-panel-kicker">Exceptions</span>
+                    <h3 id="exceptionPanelTitle">Review before export</h3>
+                </div>
+            </div>
+            <a href="{{ url_for('laybys_list') }}" class="exception-row">
+                <span class="exception-icon"><i class="bi bi-cart"></i></span>
+                <span><strong>Lay-by limits</strong><small>Monthly cap exceptions</small></span>
+                <b>{{ layby_cap_violators|length }}</b>
+            </a>
+            <a href="{{ url_for('undercharges_list') }}" class="exception-row">
+                <span class="exception-icon exception-icon-rust"><i class="bi bi-exclamation-circle"></i></span>
+                <span><strong>Repeat incidents</strong><small>Employees to review</small></span>
+                <b>{{ repeat_offenders|length }}</b>
+            </a>
+            <a href="{{ url_for('stores_report') }}" class="exception-row">
+                <span class="exception-icon exception-icon-ink"><i class="bi bi-shop"></i></span>
+                <span><strong>Store hotspots</strong><small>Locations with errors</small></span>
+                <b>{{ error_stores|length }}</b>
+            </a>
+        </aside>
+    </div>
+</section>
+
+<!-- ── Stat Cards ──────────────────────────────────────────────────────────── -->
+<div class="dashboard-section-heading dashboard-portfolio-heading">
+    <div>
+        <div class="eyebrow">Portfolio</div>
+        <h2>Current exposure</h2>
+    </div>
+    <span class="dashboard-heading-note">Active plans and balances across Retail</span>
+</div>
+<div class="row g-3 mb-4">
+    <div class="col-6 col-xl-3">
+        <a href="{{ url_for('employees') }}" class="text-decoration-none d-block h-100">
+        <div class="stat-card stat-card-link">
+            <div class="stat-icon bg-blue-soft"><i class="bi bi-people-fill text-blue"></i></div>
+            <div>
+                <div class="stat-value" data-countup="{{ stats.active_employees }}">{{ stats.active_employees }}</div>
+                <div class="stat-label">Active employees</div>
+            </div>
+        </div></a>
+    </div>
+    <div class="col-6 col-xl-3">
+        <a href="{{ url_for('uniforms_list') }}" class="text-decoration-none d-block h-100">
+        <div class="stat-card stat-card-link">
+            <div class="stat-icon bg-amber-soft"><i class="bi bi-bag-fill text-amber"></i></div>
+            <div>
+                <div class="stat-value" data-countup="{{ stats.active_uniform_plans }}">{{ stats.active_uniform_plans }}</div>
+                <div class="stat-label">Active uniform plans</div>
+            </div>
+        </div></a>
+    </div>
+    <div class="col-6 col-xl-3">
+        <a href="{{ url_for('laybys_list') }}" class="text-decoration-none d-block h-100">
+        <div class="stat-card stat-card-link">
+            <div class="stat-icon bg-teal-soft"><i class="bi bi-cart-fill text-teal"></i></div>
+            <div>
+                <div class="stat-value" data-countup="{{ stats.active_layby_plans }}">{{ stats.active_layby_plans }}</div>
+                <div class="stat-label">Active lay-by plans</div>
+            </div>
+        </div></a>
+    </div>
+    <div class="col-6 col-xl-3">
+        <a href="{{ url_for('undercharges_list') }}" class="text-decoration-none d-block h-100">
+        <div class="stat-card stat-card-link">
+            <div class="stat-icon bg-red-soft"><i class="bi bi-exclamation-circle-fill text-red"></i></div>
+            <div>
+                <div class="stat-value">
+                    {{ stats.pending_undercharges }}
+                    {% if stats.pending_overcharges > 0 %}
+                    <span style="font-size:14px;color:#235e54;margin-left:4px;">+{{ stats.pending_overcharges }}↑</span>
+                    {% endif %}
+                </div>
+                <div class="stat-label">
+                    Undercharges
+                    {% if stats.pending_overcharges > 0 %}
+                    <span style="color:#235e54;"> / {{ stats.pending_overcharges }} overcharge{{ 's' if stats.pending_overcharges != 1 }}</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div></a>
+    </div>
+</div>
+
+<!-- ── Row 2: Outstanding Balances + Quick Actions ─────────────────────────── -->
+<div class="row g-3 mb-3 dashboard-portfolio-grid">
+
+    <!-- Outstanding Balances with progress bars -->
+    <div class="col-lg-7">
+        <div class="card h-100">
+            <div class="card-header">
+                <i class="bi bi-wallet2 me-2" style="color:var(--accent-2);"></i>Balance mix
+            </div>
+            <div class="card-body p-0">
+                {% set tot = stats.total_outstanding %}
+                <table class="table mb-0">
+                    <tbody>
+                        <tr>
+                            <td style="width:60%;">
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <i class="bi bi-bag text-amber"></i><span>Staff Uniform</span>
+                                    {% if tot > 0 %}<span style="font-size:10px;color:var(--text-muted);">{{ (stats.uniform_outstanding / tot * 100)|round(1) }}%</span>{% endif %}
+                                </div>
+                                {% if tot > 0 %}
+                                <div style="height:3px;background:var(--border);">
+                                    <div class="progress-bar-fill" style="height:100%;width:0%;background:#d64315;" data-target="{{ (stats.uniform_outstanding / tot * 100)|round(1) }}"></div>
+                                </div>
+                                {% endif %}
+                            </td>
+                            <td class="text-end fw-semibold text-amber align-top pt-3">R {{ "%.2f"|format(stats.uniform_outstanding) }}</td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <i class="bi bi-cart text-teal"></i><span>Lay-by</span>
+                                    {% if tot > 0 %}<span style="font-size:10px;color:var(--text-muted);">{{ (stats.layby_outstanding / tot * 100)|round(1) }}%</span>{% endif %}
+                                </div>
+                                {% if tot > 0 %}
+                                <div style="height:3px;background:var(--border);">
+                                    <div class="progress-bar-fill" style="height:100%;width:0%;background:#235e54;" data-target="{{ (stats.layby_outstanding / tot * 100)|round(1) }}"></div>
+                                </div>
+                                {% endif %}
+                            </td>
+                            <td class="text-end fw-semibold text-teal align-top pt-3">R {{ "%.2f"|format(stats.layby_outstanding) }}</td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <i class="bi bi-exclamation-circle text-red"></i><span>Undercharges</span>
+                                    {% if tot > 0 %}<span style="font-size:10px;color:var(--text-muted);">{{ (stats.undercharge_outstanding / tot * 100)|round(1) }}%</span>{% endif %}
+                                </div>
+                                {% if tot > 0 %}
+                                <div style="height:3px;background:var(--border);">
+                                    <div class="progress-bar-fill" style="height:100%;width:0%;background:#823721;" data-target="{{ (stats.undercharge_outstanding / tot * 100)|round(1) }}"></div>
+                                </div>
+                                {% endif %}
+                            </td>
+                            <td class="text-end fw-semibold text-red align-top pt-3">R {{ "%.2f"|format(stats.undercharge_outstanding) }}</td>
+                        </tr>
+                        <tr style="background:rgba(28,28,28,.03);">
+                            <td class="fw-semibold pt-3">Total Outstanding</td>
+                            <td class="text-end align-top pt-3">
+                                <span style="font-size:17px;font-weight:800;color:var(--accent);">
+                                    R {{ "%.2f"|format(stats.total_outstanding) }}
+                                </span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Outstanding Balance Leaderboard -->
+    <div class="col-lg-5">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-trophy-fill me-2 text-warning"></i>Highest balances</span>
+                <span class="badge bg-danger-soft text-danger" style="font-size:10px;">Portfolio view</span>
+            </div>
+            <div class="card-body p-0" style="max-height: 290px; overflow-y: auto;">
+                {% if top_debtors %}
+                <table class="table mb-0 align-middle">
+                    <thead>
+                        <tr style="font-size:10px;">
+                            <th style="width:15%; text-align:center;">Rank</th>
+                            <th>Employee</th>
+                            <th style="text-align:right; padding-right: 20px;">Outstanding</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in top_debtors[:5] %}
+                        <tr>
+                            <td style="text-align:center;">
+                                {% if loop.index == 1 %}
+                                    <span class="badge rounded-circle fw-bold" style="font-size:11px; width:25px; height:25px; display:inline-flex; align-items:center; justify-content:center; background:#efe9db; color:#8a5220; border: 1px solid rgba(176, 106, 44, 0.2);" title="1st Place">1</span>
+                                {% elif loop.index == 2 %}
+                                    <span class="badge rounded-circle fw-bold" style="font-size:11px; width:25px; height:25px; display:inline-flex; align-items:center; justify-content:center; background:#f1f5f9; color:#475569; border: 1px solid rgba(142, 138, 139, 0.2);" title="2nd Place">2</span>
+                                {% elif loop.index == 3 %}
+                                    <span class="badge rounded-circle fw-bold" style="font-size:11px; width:25px; height:25px; display:inline-flex; align-items:center; justify-content:center; background:#ffedd5; color:#9a4a20; border: 1px solid rgba(168, 71, 47, 0.2);" title="3rd Place">3</span>
+                                {% else %}
+                                    <span class="badge rounded-circle fw-bold" style="font-size:11px; width:25px; height:25px; display:inline-flex; align-items:center; justify-content:center; background:#f8fafc; color:#64748b; border: 1px solid var(--border);" title="Rank {{ loop.index }}">{{ loop.index }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{{ url_for('employee_detail', emp_id=item.id) }}" class="fw-semibold text-decoration-none" style="color:var(--text-primary); font-size:13.5px;">
+                                    {{ item.full_name }}
+                                </a>
+                                <div style="font-size:11px; color:var(--text-secondary);">
+                                    <i class="bi bi-shop me-1"></i>{{ item.current_store }}
+                                </div>
+                                <div class="mt-1 d-flex gap-1 flex-wrap" style="font-size:9px;">
+                                    {% if item.uniform_out > 0 %}
+                                        <span class="badge" style="background:var(--amber-soft); color:var(--amber-text); padding: 2px 6px;">Uniform: R{{ "%.0f"|format(item.uniform_out) }}</span>
+                                    {% endif %}
+                                    {% if item.layby_out > 0 %}
+                                        <span class="badge" style="background:var(--teal-soft); color:var(--teal-text); padding: 2px 6px;">Layby: R{{ "%.0f"|format(item.layby_out) }}</span>
+                                    {% endif %}
+                                    {% if item.uc_out > 0 %}
+                                        <span class="badge" style="background:var(--red-soft); color:var(--red-text); padding: 2px 6px;">Undercharge: R{{ "%.0f"|format(item.uc_out) }}</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td style="text-align:right; padding-right: 20px;">
+                                <span class="fw-bold text-dark" style="font-size:14px;">R {{ "%.2f"|format(item.total) }}</span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="text-center text-muted py-5">
+                    <i class="bi bi-emoji-smile" style="font-size:28px;"></i>
+                    <div class="mt-2" style="font-size:13px;">No outstanding spending records!</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Recently viewed stays available as a quiet secondary utility. ─────── -->
+<div class="row g-3 mb-3 dashboard-secondary-row">
+    <div class="col-lg-5 dashboard-recent-align">
+        <div class="card h-100">
+            <div class="card-header">
+                <i class="bi bi-clock-history me-2" style="color:var(--accent-2);"></i>Recently Viewed Employees
+            </div>
+            <div class="card-body p-0" id="recentContainer">
+                <div class="text-center text-muted py-4" id="noRecent">
+                    <div style="font-size:13px;">No recently viewed employees.</div>
+                </div>
+                <div style="max-height:260px;overflow-y:auto;">
+                    <table class="table mb-0 align-middle d-none" id="recentTable">
+                        <tbody id="recentList"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Row 4: Top Debtors + Top Underchargers ─────────────────────────────── -->
+<div class="row g-3 mb-3 dashboard-insights-grid">
+
+    <!-- Top Debtors -->
+    <div class="col-lg-7">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-sort-down me-2 text-red"></i>Balance detail</span>
+                <a href="{{ url_for('employees') }}" class="btn btn-sm btn-outline-secondary" style="font-size:11px;">View All</a>
+            </div>
+            <div class="table-responsive" style="max-height:320px;overflow-y:auto;">
+                {% if top_debtors %}
+                <table class="table mb-0">
+                    <thead style="position:sticky;top:0;background:var(--bg-surface);z-index:1;">
+                        <tr>
+                            <th style="width:28px;">#</th>
+                            <th>Employee</th>
+                            <th class="text-amber" style="text-align:right;">Uniform</th>
+                            <th class="text-teal" style="text-align:right;">Lay-by</th>
+                            <th class="text-red" style="text-align:right;">Underch.</th>
+                            <th style="text-align:right;">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for d in top_debtors %}
+                        <tr>
+                            <td style="font-size:11px;color:var(--text-muted);">{{ loop.index }}</td>
+                            <td>
+                                <a href="{{ url_for('employee_detail', emp_id=d.id) }}"
+                                   class="fw-semibold text-decoration-none" style="color:var(--text-primary);font-size:13px;">{{ d.full_name }}</a>
+                                <div style="font-size:10px;color:var(--text-muted);">{{ d.current_store }}</div>
+                            </td>
+                            <td style="text-align:right;font-size:12px;">
+                                {% if d.uniform_out > 0 %}<span class="text-amber">R {{ "%.2f"|format(d.uniform_out) }}</span>
+                                {% else %}<span style="color:var(--text-muted);">—</span>{% endif %}
+                            </td>
+                            <td style="text-align:right;font-size:12px;">
+                                {% if d.layby_out > 0 %}<span class="text-teal">R {{ "%.2f"|format(d.layby_out) }}</span>
+                                {% else %}<span style="color:var(--text-muted);">—</span>{% endif %}
+                            </td>
+                            <td style="text-align:right;font-size:12px;">
+                                {% if d.uc_out > 0 %}<span class="text-red">R {{ "%.2f"|format(d.uc_out) }}</span>
+                                {% else %}<span style="color:var(--text-muted);">—</span>{% endif %}
+                            </td>
+                            <td style="text-align:right;font-weight:700;font-size:13px;">R {{ "%.2f"|format(d.total) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="text-center text-muted py-4" style="font-size:13px;">No outstanding balances.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Repeat Offenders (undercharge offences — tracked, not deducted) -->
+    <div class="col-lg-5">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-exclamation-triangle-fill me-2 text-red"></i>Repeat incidents</span>
+                <a href="{{ url_for('undercharges_list') }}" class="btn btn-sm btn-outline-secondary" style="font-size:11px;">View All</a>
+            </div>
+            <div class="card-body p-0" style="max-height:320px;overflow-y:auto;">
+                {% if repeat_offenders %}
+                {% for emp in repeat_offenders %}
+                <div class="d-flex align-items-center justify-content-between px-3 py-2"
+                     style="border-bottom:1px solid var(--border);transition:background .12s;"
+                     onmouseenter="this.style.background='var(--bg-hover)'" onmouseleave="this.style.background=''">
+                    <div style="min-width:0;flex:1;">
+                        <a href="{{ url_for('employee_detail', emp_id=emp.id) }}"
+                           class="fw-semibold text-decoration-none d-block text-truncate"
+                           style="font-size:13px;color:var(--text-primary);">{{ emp.full_name }}</a>
+                        <div style="font-size:11px;color:var(--text-muted);">{{ emp.current_store }}</div>
+                    </div>
+                    <div class="text-end ms-3 flex-shrink-0">
+                        <span style="background:rgba(130,55,33,.1);color:#823721;font-size:11px;font-weight:700;padding:2px 8px;display:inline-block;">
+                            {{ emp.offences }} offence{{ 's' if emp.offences != 1 }}
+                        </span>
+                        <div style="font-size:12px;font-weight:700;color:#823721;margin-top:3px;">R {{ "%.2f"|format(emp.total_amount or 0) }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div class="text-center text-muted py-4">
+                    <i class="bi bi-check-circle-fill text-success" style="font-size:28px;"></i>
+                    <div class="mt-2" style="font-size:13px;">No offences on record.</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Row 4.6: Error Hotspots by Store ─────────────────────────────────── -->
+{% if error_stores %}
+{% set max_errors = error_stores|map(attribute='errors')|max %}
+{% set total_errors = error_stores|sum(attribute='errors') %}
+{% set total_value = error_stores|sum(attribute='total_amount') %}
+<div class="row g-3 mb-3">
+    <div class="col-12">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-shop me-2 text-red"></i>Error Hotspots — Stores Causing the Most Cash Misses</span>
+                <a href="{{ url_for('undercharges_list') }}" class="btn btn-sm btn-outline-secondary" style="font-size:11px;">View All</a>
+            </div>
+            <div class="card-body" style="padding-top:6px;">
+                <div class="d-flex align-items-center justify-content-between mb-2 hotspot-summary" style="font-size:11.5px;color:var(--text-muted);">
+                    <span>Ranked by number of logged undercharges across all time.</span>
+                    <span><strong style="color:#823721;">{{ total_errors }}</strong> errors · <strong style="color:#823721;">R {{ "%.2f"|format(total_value or 0) }}</strong> in the top {{ error_stores|length }} store{{ 's' if error_stores|length != 1 }}</span>
+                </div>
+                {% for s in error_stores %}
+                {% set pct = (s.errors / max_errors * 100) if max_errors else 0 %}
+                <div class="d-flex align-items-center hotspot-row"
+                     style="gap:14px;padding:9px 0;{% if not loop.last %}border-bottom:1px solid var(--border);{% endif %}">
+                    <div style="width:20px;text-align:center;font-size:12px;font-weight:700;color:var(--text-muted);flex-shrink:0;">{{ loop.index }}</div>
+                    <div class="hotspot-store" style="width:170px;flex-shrink:0;min-width:0;">
+                        <div class="text-truncate d-flex align-items-center" style="font-size:13px;font-weight:600;color:var(--text-primary);gap:6px;">
+                            {{ s.store }}
+                            {% if loop.first %}
+                            <span style="background:#823721;color:#fff;font-size:9px;font-weight:700;letter-spacing:.3px;padding:1px 6px;border-radius:10px;white-space:nowrap;"><i class="bi bi-exclamation-triangle-fill" style="font-size:8px;"></i> MOST ISSUES</span>
+                            {% endif %}
+                        </div>
+                        <div style="font-size:10.5px;color:var(--text-muted);">{{ s.staff }} staff member{{ 's' if s.staff != 1 }} involved</div>
+                    </div>
+                    <div class="hotspot-bar" style="flex:1;min-width:50px;">
+                        <div style="position:relative;height:24px;background:var(--red-soft);border-radius:6px;overflow:hidden;">
+                            <div style="position:absolute;top:0;bottom:0;left:0;width:{{ [pct|round(0,'ceil')|int, 4]|max }}%;background:linear-gradient(90deg, rgba(168,71,47,.78), rgba(130,55,33,.96));border-radius:6px;"></div>
+                        </div>
+                    </div>
+                    <div class="hotspot-value" style="width:118px;flex-shrink:0;text-align:right;">
+                        <div style="font-size:13px;font-weight:700;color:#823721;">{{ s.errors }} error{{ 's' if s.errors != 1 }}</div>
+                        <div style="font-size:11px;color:var(--text-muted);">R {{ "%.2f"|format(s.total_amount or 0) }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- ── Row 4.5: Lay-by Cap Violations ── -->
+{% if layby_cap_violators %}
+<div class="row g-3 mb-3">
+    <div class="col-12">
+        <div class="card border-0" style="background:#fffbeb; border:1px solid #e6dcc2 !important; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+            <div class="card-header d-flex justify-content-between align-items-center" style="background:rgba(236, 224, 196, 0.4); border-bottom:1px solid #e6dcc2; font-weight:700; color:#8a5220;">
+                <span>
+                    <i class="bi bi-exclamation-triangle-fill me-2" style="color:#8a5220;"></i>
+                    Lay-by Monthly Cap Violations (> R 833.00)
+                </span>
+                <span class="badge bg-warning text-dark px-2.5 py-1" style="font-size:11px; font-weight:700;">{{ layby_cap_violators|length }} employees over limit</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table mb-0 align-middle">
+                    <thead>
+                        <tr style="border-bottom:1.5px solid #e6dcc2;">
+                            <th class="ps-3" style="font-size:12px; color:#6b3e18;">Employee</th>
+                            <th style="font-size:12px; color:#6b3e18;">Store</th>
+                            <th style="font-size:12px; color:#6b3e18; text-align:center;">Active Plans</th>
+                            <th style="font-size:12px; color:#6b3e18; text-align:right;">Outstanding Bal.</th>
+                            <th style="font-size:12px; color:#6b3e18; text-align:right;">Monthly Lay-by</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for v in layby_cap_violators %}
+                        <tr style="border-bottom:1px solid rgba(236, 224, 196, 0.5);">
+                            <td class="ps-3">
+                                <a href="{{ url_for('employee_detail', emp_id=v.id) }}" class="fw-bold text-decoration-none" style="color:#6b3e18; font-size:13.5px;">
+                                    {{ v.full_name }}
+                                </a>
+                                <div style="font-size:10px; color:#8a5220; font-family:monospace;">{{ v.id }}</div>
+                            </td>
+                            <td style="font-size:13px; color:#6b3e18;">{{ v.current_store }}</td>
+                            <td style="text-align:center; font-size:13px; font-weight:600; color:#6b3e18;">{{ v.plan_count }} plan(s)</td>
+                            <td style="text-align:right; font-size:13px; font-weight:600; color:#6b3e18;">R {{ "%.2f"|format(v.total_remaining) }}</td>
+                            <td style="text-align:right;">
+                                <span class="fw-extrabold text-danger" style="font-size:14px; font-weight:800;">R {{ "%.2f"|format(v.total_monthly) }}</span>
+                                <span class="badge bg-danger-soft text-danger ms-1" style="font-size:10px; padding:2px 6px; background: rgba(168, 71, 47, 0.1);">+R {{ "%.2f"|format(v.total_monthly - 833.00) }} over</span>
+                            </td>
+                            <td style="text-align:right; padding-right:16px;">
+                                <a href="{{ url_for('employee_detail', emp_id=v.id) }}" class="btn btn-xs btn-outline-warning" style="font-size:11px; padding:2px 8px; color:#8a5220; border-color:#8a5220; background:transparent;">
+                                    Adjust Plans <i class="bi bi-arrow-right ms-1"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- ── Row 5: Payroll Trend Chart ─────────────────────────────────────────── -->
+<div class="card mb-3 dashboard-trend-card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-bar-chart-fill me-2" style="color:var(--accent-2);"></i>6-Month Payroll Trend</span>
+        <button id="toggleHistoryBtn" class="btn btn-sm btn-outline-secondary" style="font-size:11px;">
+            <i class="bi bi-table me-1"></i>Show Table
+        </button>
+    </div>
+    <div class="card-body" style="padding-bottom:8px;">
+
+        <!-- Bar chart -->
+        {% set ns = namespace(mx=0) %}
+        {% for h in history %}{% if h.total > ns.mx %}{% set ns.mx = h.total %}{% endif %}{% endfor %}
+        {% set CH = 150 %}
+
+        <div style="display:flex;align-items:flex-end;gap:10px;height:{{ CH + 24 }}px;padding:0 4px 0 4px;">
+            {% for h in history %}
+            {% set is_cur = (h.year == now.year and h.month == now.month) %}
+            {% if ns.mx > 0 and h.total > 0 %}
+                {% set bh = ((h.total / ns.mx) * CH)|int %}
+                {% set bh = bh if bh > 4 else 4 %}
+                {% set up  = (h.undercharges / h.total * 100)|int %}
+                {% set lp  = (h.layby       / h.total * 100)|int %}
+                {% set ulp = up + lp %}
+                {% set grad = 'linear-gradient(to bottom, #823721 0% ' ~ up ~ '%, #235e54 ' ~ up ~ '% ' ~ ulp ~ '%, #d64315 ' ~ ulp ~ '% 100%)' %}
+            {% else %}
+                {% set bh = 4 %}
+                {% set grad = 'var(--border)' %}
+            {% endif %}
+
+            <div class="chart-col-bar"
+                 data-label="{{ h.month_name }} {{ h.year }}"
+                 data-uniform="{{ h.uniform }}"
+                 data-layby="{{ h.layby }}"
+                 data-uc="{{ h.undercharges }}"
+                 data-total="{{ h.total }}"
+                 style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;cursor:default;">
+                <div style="width:100%;height:{{ bh }}px;background:{{ grad }};
+                            {% if is_cur %}outline:2px solid var(--accent);outline-offset:2px;{% endif %}
+                            transition:opacity .15s;"
+                     onmouseenter="this.parentElement.style.opacity='.85'"
+                     onmouseleave="this.parentElement.style.opacity='1'">
+                </div>
+                <span style="font-size:10px;
+                             color:{% if is_cur %}var(--accent){% else %}var(--text-muted){% endif %};
+                             font-weight:{% if is_cur %}700{% else %}400{% endif %};">
+                    {{ h.month_name }}
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Legend -->
+        <div style="display:flex;gap:18px;justify-content:center;margin-top:6px;flex-wrap:wrap;">
+            <span style="font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:5px;">
+                <span style="width:10px;height:10px;background:#d64315;display:inline-block;"></span>Uniform
+            </span>
+            <span style="font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:5px;">
+                <span style="width:10px;height:10px;background:#235e54;display:inline-block;"></span>Lay-by
+            </span>
+            <span style="font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:5px;">
+                <span style="width:10px;height:10px;background:#823721;display:inline-block;"></span>Undercharges
+            </span>
+            <span style="font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:5px;">
+                <span style="width:10px;height:10px;background:rgba(28,28,28,.15);display:inline-block;outline:1.5px solid var(--accent);outline-offset:1px;"></span>Current month
+            </span>
+        </div>
+    </div>
+
+    <!-- Collapsible history table -->
+    <div id="historyTableWrapper" style="display:none;border-top:1px solid var(--border);">
+        <div class="table-responsive">
+            <table class="table mb-0">
+                <thead>
+                    <tr>
+                        <th>Month</th>
+                        <th style="text-align:right;" class="text-amber"><i class="bi bi-bag me-1"></i>Uniform</th>
+                        <th style="text-align:right;" class="text-teal"><i class="bi bi-cart me-1"></i>Lay-by</th>
+                        <th style="text-align:right;" class="text-red"><i class="bi bi-exclamation-circle me-1"></i>Undercharges</th>
+                        <th style="text-align:right;">Total</th>
+                        <th style="text-align:right;width:60px;">vs prev</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for h in history %}
+                    {% set is_current = (h.year == now.year and h.month == now.month) %}
+                    {% set prev = history[loop.index0 - 1] if loop.index0 > 0 else none %}
+                    <tr style="{% if is_current %}background:rgba(28,28,28,.03);{% endif %}">
+                        <td class="fw-semibold">
+                            {% if is_current %}<span class="badge bg-primary me-1" style="font-size:10px;">NOW</span>{% endif %}
+                            {{ h.month_name }} {{ h.year }}
+                        </td>
+                        <td style="text-align:right;" class="text-amber">R {{ "%.2f"|format(h.uniform) }}</td>
+                        <td style="text-align:right;" class="text-teal">R {{ "%.2f"|format(h.layby) }}</td>
+                        <td style="text-align:right;" class="text-red">R {{ "%.2f"|format(h.undercharges) }}</td>
+                        <td style="text-align:right;font-weight:700;">R {{ "%.2f"|format(h.total) }}</td>
+                        <td style="text-align:right;">
+                            {% if prev and prev.total > 0 %}
+                                {% set chg = ((h.total - prev.total) / prev.total * 100)|round(1) %}
+                                {% if chg > 0 %}
+                                    <span style="color:#823721;font-size:11px;font-weight:600;">↑{{ chg }}%</span>
+                                {% elif chg < 0 %}
+                                    <span style="color:#3b6d3f;font-size:11px;font-weight:600;">↓{{ (chg * -1)|round(1) }}%</span>
+                                {% else %}
+                                    <span style="color:var(--text-muted);font-size:11px;">—</span>
+                                {% endif %}
+                            {% else %}
+                                <span style="color:var(--text-muted);font-size:11px;">—</span>
+                            {% endif %}
+                        </td>
+                        <td style="text-align:right;">
+                            <a href="{{ url_for('monthly_view', year=h.year, month=h.month) }}"
+                               class="btn btn-sm btn-outline-primary" style="padding:2px 8px;font-size:11px;">
+                                Open <i class="bi bi-arrow-right ms-1"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Floating chart tooltip -->
+<div id="chartTooltip" style="display:none;position:fixed;background:var(--bg-surface);border:1px solid var(--border-hover);
+     padding:10px 14px;font-size:12px;pointer-events:none;z-index:9999;min-width:180px;
+     box-shadow:0 4px 20px rgba(28,28,28,.12);">
+    <div id="ttLabel" style="font-weight:700;font-size:13px;margin-bottom:7px;border-bottom:1px solid var(--border);padding-bottom:5px;"></div>
+    <div id="ttContent" style="display:flex;flex-direction:column;gap:4px;"></div>
+</div>
+
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+    // ── Animated stat card counters ───────────────────────────────────────────
+    function countUp(el, target, duration) {
+        const start = performance.now();
+        const isInt = Number.isInteger(target);
+        const step = t => {
+            const p = Math.min((t - start) / duration, 1);
+            const eased = 1 - Math.pow(1 - p, 3);
+            el.textContent = isInt ? Math.round(eased * target) : (eased * target).toFixed(2);
+            if (p < 1) requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+    }
+    document.querySelectorAll('[data-countup]').forEach(el => {
+        const v = parseFloat(el.dataset.countup);
+        if (!isNaN(v)) countUp(el, v, 700);
+    });
+
+    // ── Progress bar fills (animate in) ──────────────────────────────────────
+    document.querySelectorAll('.progress-bar-fill').forEach(bar => {
+        const target = parseFloat(bar.dataset.target) || 0;
+        bar.style.transition = 'width .9s cubic-bezier(.4,0,.2,1)';
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            bar.style.width = target + '%';
+        }));
+    });
+
+    // ── Chart bar tooltip ─────────────────────────────────────────────────────
+    const tooltip  = document.getElementById('chartTooltip');
+    const ttLabel   = document.getElementById('ttLabel');
+    const ttContent = document.getElementById('ttContent');
+
+    function fmt(n) {
+        return parseFloat(n).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    document.querySelectorAll('.chart-col-bar').forEach(col => {
+        col.addEventListener('mouseenter', () => {
+            const label   = col.dataset.label;
+            const uniform = col.dataset.uniform;
+            const layby   = col.dataset.layby;
+            const uc      = col.dataset.uc;
+            const total   = col.dataset.total;
+            ttLabel.textContent = label;
+            ttContent.innerHTML = `
+                <div style="display:flex;justify-content:space-between;gap:20px;">
+                    <span style="color:#d64315;"><span style="display:inline-block;width:9px;height:9px;background:#d64315;margin-right:5px;"></span>Uniform</span>
+                    <span style="font-weight:600;">R ${fmt(uniform)}</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;gap:20px;">
+                    <span style="color:#235e54;"><span style="display:inline-block;width:9px;height:9px;background:#235e54;margin-right:5px;"></span>Lay-by</span>
+                    <span style="font-weight:600;">R ${fmt(layby)}</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;gap:20px;">
+                    <span style="color:#823721;"><span style="display:inline-block;width:9px;height:9px;background:#823721;margin-right:5px;"></span>Undercharges</span>
+                    <span style="font-weight:600;">R ${fmt(uc)}</span>
+                </div>
+                <div style="border-top:1px solid var(--border);margin-top:5px;padding-top:5px;display:flex;justify-content:space-between;gap:20px;">
+                    <span style="font-weight:700;">Total</span>
+                    <span style="font-weight:700;">R ${fmt(total)}</span>
+                </div>`;
+            tooltip.style.display = 'block';
+        });
+        col.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+    });
+
+    document.addEventListener('mousemove', e => {
+        if (tooltip.style.display !== 'none') {
+            tooltip.style.left = (e.clientX + 16) + 'px';
+            tooltip.style.top  = (e.clientY - 10) + 'px';
+        }
+    });
+
+    // ── History table toggle ──────────────────────────────────────────────────
+    const toggleBtn     = document.getElementById('toggleHistoryBtn');
+    const historyWrapper = document.getElementById('historyTableWrapper');
+    if (toggleBtn && historyWrapper) {
+        toggleBtn.addEventListener('click', () => {
+            const isHidden = historyWrapper.style.display === 'none';
+            historyWrapper.style.display = isHidden ? 'block' : 'none';
+            toggleBtn.innerHTML = isHidden
+                ? '<i class="bi bi-bar-chart-fill me-1"></i>Hide Table'
+                : '<i class="bi bi-table me-1"></i>Show Table';
+        });
+    }
+
+    // ── Recently viewed employees ─────────────────────────────────────────────
+    const list    = JSON.parse(localStorage.getItem('recently_viewed') || '[]');
+    const table   = document.getElementById('recentTable');
+    const tbody   = document.getElementById('recentList');
+    const noRecent = document.getElementById('noRecent');
+    if (list.length > 0 && tbody && table && noRecent) {
+        noRecent.classList.add('d-none');
+        table.classList.remove('d-none');
+        tbody.innerHTML = '';
+        list.forEach(emp => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="ps-3">
+                    <a href="/employees/${encodeURIComponent(emp.id)}" class="fw-semibold text-decoration-none" style="color:var(--text-primary);">${escHtml(emp.name)}</a>
+                    <div style="font-size:11px;color:var(--text-secondary);">${escHtml(emp.store)}</div>
+                </td>
+                <td class="text-end pe-3" style="font-size:12px;color:var(--text-muted);font-family:monospace;">${escHtml(emp.id)}</td>`;
+            tbody.appendChild(tr);
+        });
+    }
+});
+</script>
+{% endblock %}

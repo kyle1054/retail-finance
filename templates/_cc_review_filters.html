@@ -1,0 +1,22 @@
+{#
+  The review queue's filter state, re-posted with every action so the redirect
+  lands the admin back on the same cards / period / status / search they were
+  working in. `_redirect_to_review()` in northwind/cards/admin_review.py reads exactly
+  these field names — including the `cards_present` sentinel, without which an
+  empty card selection is read back as "no filter" and silently re-selects every
+  active card.
+
+  Shared by cc_review.html and the lazily fetched cc_review_drawer.html so the
+  two copies of this contract cannot drift apart.
+#}
+{% macro preserve_filters() -%}
+    <input type="hidden" name="cards_present" value="1">
+    {% for card_id in selected_ids|sort %}
+    <input type="hidden" name="card_id" value="{{ card_id }}">
+    {% endfor %}
+    {% if selected_period %}<input type="hidden" name="period" value="{{ selected_period }}">{% endif %}
+    <input type="hidden" name="status" value="{{ selected_status }}">
+    {% if search %}<input type="hidden" name="q" value="{{ search }}">{% endif %}
+    {% if selected_page and selected_page > 1 %}<input type="hidden" name="page" value="{{ selected_page }}">{% endif %}
+    {% if selected_per_page %}<input type="hidden" name="per_page" value="{{ selected_per_page }}">{% endif %}
+{%- endmacro %}

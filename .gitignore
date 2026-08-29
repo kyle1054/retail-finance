@@ -1,0 +1,32 @@
+# Databases — never commit one. `python3 scripts/init_db.py` builds a fresh
+# schema in seconds, so there is no reason for a .db file to be in the repo.
+*.db
+*.db-shm
+*.db-wal
+db/
+
+# Uploaded receipt images and invoices
+receipts/
+
+# Backups
+backups/
+
+# Virtualenv
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+.env.*
+
+# Local secrets
+.flask_secret
+
+# macOS
+.DS_Store
+
+# pytest
+.pytest_cache/

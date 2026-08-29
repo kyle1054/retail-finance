@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Undercharge timeline · {{ uc.full_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-4">
+    <div>
+        <a href="{{ url_for('employee_detail', emp_id=uc.employee_id) }}" class="small text-decoration-none">
+            <i class="bi bi-arrow-left me-1"></i>{{ uc.full_name }}
+        </a>
+        <h1 class="h3 mt-2 mb-1">Undercharge financial timeline</h1>
+        <div class="text-muted">{{ uc.reason or 'Undercharge' }}{% if uc.sale_number %} · {{ uc.sale_number }}{% endif %}</div>
+    </div>
+    <a href="{{ url_for('undercharges_list') }}" class="btn btn-outline-secondary btn-sm">All undercharges</a>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+        <div class="card h-100"><div class="card-body">
+            <div class="small text-muted">Original amount</div>
+            <div class="h4 mb-0">R {{ "%.2f"|format(account.original_total_cents / 100) }}</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card h-100"><div class="card-body">
+            <div class="small text-muted">Actually deducted</div>
+            <div class="h4 mb-0 text-success">R {{ "%.2f"|format(account.payroll_deducted_cents / 100) }}</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card h-100"><div class="card-body">
+            <div class="small text-muted">Customer paid</div>
+            <div class="h4 mb-0">R {{ "%.2f"|format(account.customer_paid_cents / 100) }}</div>
+        </div></div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card h-100"><div class="card-body">
+            <div class="small text-muted">Employee balance</div>
+            <div class="h4 mb-0 text-danger">R {{ "%.2f"|format(account.remaining_cents / 100) }}</div>
+        </div></div>
+    </div>
+</div>
+
+{% if account.refund_due_cents or account.scheduled_refunds_cents %}
+<div class="alert alert-success">
+    Employee refund due: <strong>R {{ "%.2f"|format(account.refund_due_cents / 100) }}</strong>
+    {% if account.scheduled_refunds_cents %}
+    · Scheduled through payroll: <strong>R {{ "%.2f"|format(account.scheduled_refunds_cents / 100) }}</strong>
+    {% endif %}
+</div>
+{% endif %}
+
+<div class="card mb-4">
+    <div class="card-header bg-transparent">
+        <h2 class="h6 mb-0">Payroll schedule history</h2>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Schedule</th>
+                    <th>Payroll month</th>
+                    <th>Kind</th>
+                    <th class="text-end">Amount</th>
+                    <th>State</th>
+                    <th>Reason</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in timeline.schedule_items %}
+                <tr>
+                    <td>Version {{ item.version }}</td>
+                    <td>{{ MONTH_NAMES[item.due_month] }} {{ item.due_year }}</td>
+                    <td>{{ item.kind|title }}</td>
+                    <td class="text-end {% if item.amount_cents < 0 %}text-success{% endif %}">
+                        R {{ "%.2f"|format(item.amount_cents / 100) }}
+                    </td>
+                    <td>
+                        {% if item.transaction_id and not item.transaction_voided %}
+                            <span class="badge bg-success">Processed</span>
+                        {% elif item.transaction_voided %}
+                            <span class="badge bg-secondary">Voided</span>
+                        {% elif item.state == 'scheduled' %}
+                            <span class="badge bg-warning text-dark">Scheduled</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ item.state|title }}</span>
+                        {% endif %}
+                    </td>
+                    <td class="small text-muted">{{ item.state_reason or item.revision_reason or '—' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" class="text-center text-muted py-4">No schedule history.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header bg-transparent">
+        <h2 class="h6 mb-0">Settlements and adjustments</h2>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead><tr><th>Recorded</th><th>Event</th><th class="text-end">Amount</th><th>Effective month</th><th>Note</th><th>By</th></tr></thead>
+            <tbody>
+                {% for event in timeline.events %}
+                <tr>
+                    <td class="small">{{ event.created_at }}</td>
+                    <td>{{ event.event_type|replace('_',' ')|title }}</td>
+                    <td class="text-end">R {{ "%.2f"|format(event.amount_cents / 100) }}</td>
+                    <td>{% if event.effective_month %}{{ MONTH_NAMES[event.effective_month] }} {{ event.effective_year }}{% else %}—{% endif %}</td>
+                    <td>{{ event.note or '—' }}</td>
+                    <td>{{ event.actor or 'system' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" class="text-center text-muted py-4">No settlement events yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

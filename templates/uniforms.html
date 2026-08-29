@@ -1,0 +1,321 @@
+{% extends 'base.html' %}
+{% block title %}Uniform Plans — Northwind Deductions{% endblock %}
+{% block page_title %}Uniform Plans{% endblock %}
+
+{% from '_pager.html' import pager as list_pager %}
+{% block content %}
+{% set status_label = 'Active' if status_filter == 'active' else 'Completed' if status_filter == 'complete' else 'Written-off' if status_filter == 'written_off' else 'Total' %}
+<!-- Summary bar -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon bg-amber-soft"><i class="bi bi-bag-fill text-amber"></i></div>
+            <div>
+                <div class="stat-value">{{ total_active_plans }}</div>
+                <div class="stat-label">{{ status_label }} Plans</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon bg-blue-soft"><i class="bi bi-currency-dollar text-blue"></i></div>
+            <div>
+                <div class="stat-value" style="font-size:20px;">R {{ "{:,.0f}".format(total_outstanding) }}</div>
+                <div class="stat-label">Total Outstanding</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon bg-teal-soft"><i class="bi bi-people-fill text-teal"></i></div>
+            <div>
+                <div class="stat-value">{{ totals.employees }}</div>
+                <div class="stat-label">Employees</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon bg-red-soft"><i class="bi bi-calendar-month text-red"></i></div>
+            <div>
+                <div class="stat-value" style="font-size:20px;">R {{ "{:,.0f}".format(totals.monthly) }}</div>
+                <div class="stat-label">Monthly Total</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="plan-list-toolbar d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <div class="plan-filter-stack d-flex gap-2 flex-wrap">
+        <form class="plan-filter-form d-flex gap-2" method="get" id="uniformFilterForm">
+            <select name="store" class="form-select" style="width:auto;font-size:14px;" data-submit-on-change>
+                <option value="">All Stores</option>
+                {% for s in stores %}
+                    <option value="{{ s }}" {% if s == store_filter %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+            </select>
+            <select name="status" class="form-select" style="width:auto;font-size:14px;" data-submit-on-change>
+                <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
+                <option value="complete" {% if status_filter == 'complete' %}selected{% endif %}>Completed</option>
+                <option value="written_off" {% if status_filter == 'written_off' %}selected{% endif %}>Written off</option>
+                <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All statuses</option>
+            </select>
+            {% if store_filter or status_filter != 'active' %}
+                <a href="{{ url_for('uniforms_list') }}" class="btn btn-outline-secondary btn-sm">Clear</a>
+            {% endif %}
+        </form>
+        <div class="input-group search-bar" style="width:200px; max-height:38px;">
+            <input type="text" id="listSearch" name="q" form="uniformFilterForm" value="{{ search }}" class="form-control" placeholder="Search name…" style="font-size:13px; height:38px;">
+            <button class="btn btn-outline-secondary" type="submit" form="uniformFilterForm" aria-label="Search plans"><i class="bi bi-search"></i></button>
+        </div>
+    </div>
+    <div class="plan-toolbar-actions d-flex align-items-center gap-3">
+        <span style="font-size:13px;color:#94a3b8;" id="plans-count-label">{{ total_active_plans }} {{ status_label|lower }} plan{{ 's' if total_active_plans != 1 }} across {{ totals.employees }} employee{{ 's' if totals.employees != 1 }}{% if store_filter %} in {{ store_filter }}{% endif %}</span>
+        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addUniformModal" style="font-size:13px;">
+            <i class="bi bi-plus-lg me-1"></i>Add Uniform
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0 mobile-card-table plan-data-table">
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th>Store</th>
+                    <th>Description</th>
+                    <th style="text-align:right;">Monthly</th>
+                    <th style="text-align:center;">Progress</th>
+                    <th style="text-align:right;">Balance</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set ns = namespace(last_store='') %}
+                {% for p in plans %}
+                {% if p.current_store != ns.last_store %}
+                    {% set ns.last_store = p.current_store %}
+                    <tr class="store-group-row">
+                        <td colspan="7" style="font-weight:600;font-size:12px;color:var(--text-secondary);padding:6px 16px;">
+                            <i class="bi bi-shop me-1"></i>{{ p.current_store }}
+                        </td>
+                    </tr>
+                {% endif %}
+                <tr>
+                    <td class="mobile-card-primary" data-label="Employee">
+                        <div class="fw-semibold" style="font-size:14px;">{{ p.full_name }}</div>
+                        <div style="font-size:11px;color:#94a3b8;">{{ p.job_title }}</div>
+                    </td>
+                    <td class="mobile-card-store" data-label="Store" style="font-size:13px;color:#64748b;">{{ p.current_store }}</td>
+                    <td class="mobile-card-description" data-label="Description">
+                        <div style="font-size:13px; font-weight: 500;">{{ p.description }}</div>
+                    </td>
+                    <td class="mobile-card-monthly" data-label="Monthly" style="text-align:right;font-size:14px;color:#8a5220;font-weight:600;">
+                        R {{ "%.2f"|format(p.monthly_amount) }}
+                    </td>
+                    <td class="mobile-card-progress" data-label="Progress" style="text-align:center;">
+                        <div style="font-size:12px;color:#64748b;margin-bottom:3px;">
+                            {{ p.payments_made }}/{{ p.term_months }}
+                        </div>
+                        <div class="progress" style="height:6px;width:80px;margin:0 auto;">
+                            <div class="progress-bar bg-warning"
+                                 style="width:{{ (p.payments_made / p.term_months * 100)|int }}%"></div>
+                        </div>
+                        <div style="font-size:11px;color:#94a3b8;margin-top:2px;">{{ p.payments_left }} left</div>
+                    </td>
+                    <td class="mobile-card-value" data-label="Balance" style="text-align:right;font-weight:700;font-size:14px;">
+                        R {{ "%.2f"|format(p.balance) }}
+                    </td>
+                    <td class="mobile-card-actions">
+                        <a href="{{ url_for('employee_detail', emp_id=p.employee_id) }}"
+                           class="btn btn-sm btn-outline-secondary" style="font-size:11px;padding:2px 8px;">
+                            View <i class="bi bi-arrow-right ms-1"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-4">
+                        <i class="bi bi-bag me-2"></i>No active uniform plans{% if store_filter %} for {{ store_filter }}{% endif %}.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            {% if plans %}
+            <tfoot>
+                <tr style="background:rgba(176,106,44,.08);font-weight:700;">
+                    <td colspan="3">Total{% if pager.pages > 1 %} (all {{ pager.total }} employees){% endif %}</td>
+                    <td style="text-align:right;color:#a8702a;">R {{ "%.2f"|format(totals.monthly) }}</td>
+                    <td></td>
+                    <td style="text-align:right;">R {{ "%.2f"|format(total_outstanding) }}</td>
+                    <td></td>
+                </tr>
+            </tfoot>
+            {% endif %}
+        </table>
+    </div>
+    {{ list_pager(pager) }}
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     EXPORT SECTION
+     ═══════════════════════════════════════════════════ -->
+<div class="card mt-4" id="exportSection" style="border:1px solid rgba(176,106,44,.25);">
+    <div class="card-body" style="padding:20px 24px;">
+        <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-3">
+                <div style="width:38px;height:38px;border-radius:10px;background:rgba(176,106,44,.15);display:flex;align-items:center;justify-content:center;">
+                    <i class="bi bi-file-earmark-spreadsheet text-warning" style="font-size:18px;"></i>
+                </div>
+                <div>
+                    <div class="fw-bold" style="font-size:15px;">Export Uniform Plans</div>
+                    <div style="font-size:12px;color:#94a3b8;">Download active plans as a formatted Excel workbook (2 sheets: detail + store summary)</div>
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <a href="{{ url_for('export_uniforms') }}{% if store_filter %}?store={{ store_filter }}{% endif %}"
+                   class="btn btn-warning btn-sm fw-semibold"
+                   id="quickExportUniforms"
+                   style="padding:7px 18px;font-size:13px;">
+                    <i class="bi bi-download me-1"></i>Quick Export{% if store_filter %} · {{ store_filter }}{% else %} All Stores{% endif %}
+                </a>
+                <button class="btn btn-outline-secondary btn-sm"
+                        style="font-size:13px;padding:7px 14px;"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#uniformExportOptions"
+                        aria-expanded="false">
+                    <i class="bi bi-sliders me-1"></i>Custom Range
+                </button>
+            </div>
+        </div>
+
+        <div class="collapse" id="uniformExportOptions">
+            <div style="background:var(--bg-elevated);border-radius:10px;padding:16px;border:1px solid var(--border);">
+                <form id="uniformExportForm" action="{{ url_for('export_uniforms') }}" method="get" target="_blank">
+                    {% if store_filter %}<input type="hidden" name="store" value="{{ store_filter }}">{% endif %}
+                    <div class="row g-3 align-items-end">
+                        <div class="col-12">
+                            <div style="font-size:12px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Filter by Start Month Range</div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label fw-semibold" style="font-size:12px;">From Month</label>
+                            <select name="from_month" id="uniFromMonth" class="form-select form-select-sm">
+                                {% for i in range(1,13) %}
+                                    <option value="{{ i }}" {% if i == now.month %}selected{% endif %}>{{ MONTH_NAMES[i] }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <label class="form-label fw-semibold" style="font-size:12px;">From Year</label>
+                            <input type="number" name="from_year" id="uniFromYear" class="form-control form-control-sm" value="{{ now.year }}" min="2020" max="2035">
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label fw-semibold" style="font-size:12px;">To Month</label>
+                            <select name="to_month" id="uniToMonth" class="form-select form-select-sm">
+                                {% for i in range(1,13) %}
+                                    <option value="{{ i }}" {% if i == now.month %}selected{% endif %}>{{ MONTH_NAMES[i] }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <label class="form-label fw-semibold" style="font-size:12px;">To Year</label>
+                            <input type="number" name="to_year" id="uniToYear" class="form-control form-control-sm" value="{{ now.year }}" min="2020" max="2035">
+                        </div>
+                        <div class="col-12 col-md-2">
+                            <button type="submit" class="btn btn-warning btn-sm w-100 fw-semibold" style="font-size:13px;padding:7px 0;">
+                                <i class="bi bi-download me-1"></i>Export Range
+                            </button>
+                        </div>
+                    </div>
+                    <div style="font-size:11px;color:#64748b;margin-top:10px;">
+                        <i class="bi bi-info-circle me-1"></i>Range filter applies to plan start date. Leave unchanged to export all active plans.
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Uniform Modal -->
+<div class="modal fade" id="addUniformModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content border-0" style="border-radius:14px;">
+            <div class="modal-header border-0">
+                <h6 class="modal-title fw-bold"><i class="bi bi-bag-fill me-2 text-warning"></i>Add Uniform Plan</h6>
+                <button class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{{ url_for('add_uniform') }}">
+                <div class="modal-body">
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold" style="font-size:13px;">Store</label>
+                            <select id="uniStoreSelect" class="form-select">
+                                <option value="">— Select store —</option>
+                                {% for s in all_stores %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold" style="font-size:13px;">Employee</label>
+                            <select name="employee_id" id="uniEmpSelect" class="form-select" required>
+                                <option value="">— Select employee —</option>
+                                {% for e in all_employees %}
+                                <option value="{{ e.id }}" data-store="{{ e.current_store }}">{{ e.full_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold" style="font-size:13px;">Description</label>
+                        <input type="text" name="description" class="form-control" placeholder="e.g. Ladies trainer, sage UK5">
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold" style="font-size:13px;">SKU</label>
+                            <input type="text" name="sku" class="form-control" placeholder="660200…">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold" style="font-size:13px;">Sale Number</label>
+                            <input type="text" name="sale_number" class="form-control" placeholder="SO-XXXXXX">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold" style="font-size:13px;">Monthly Amount (R)</label>
+                            <input type="number" name="monthly_amount" class="form-control" step="0.01" min="0" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold" style="font-size:13px;">Term (months)</label>
+                            <select name="term_months" class="form-select">
+                                {% for i in range(1,13) %}<option value="{{ i }}" {% if i==6 %}selected{% endif %}>{{ i }}</option>{% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label fw-semibold" style="font-size:13px;">Start Month</label>
+                            <select name="start_month" class="form-select">
+                                {% for i in range(1,13) %}<option value="{{ i }}" {% if i==now.month %}selected{% endif %}>{{ MONTH_NAMES[i] }}</option>{% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-3">
+                            <label class="form-label fw-semibold" style="font-size:13px;">Year</label>
+                            <input type="number" name="start_year" class="form-control" value="{{ now.year }}">
+                        </div>
+                        <div class="col-5">
+                            <label class="form-label fw-semibold" style="font-size:13px;">Notes</label>
+                            <input type="text" name="notes" class="form-control" placeholder="Optional">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning btn-sm px-4">Add Plan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='uniforms.js') }}"></script>
+{% endblock %}

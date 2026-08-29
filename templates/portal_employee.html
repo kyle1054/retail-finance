@@ -1,0 +1,182 @@
+{% extends "portal_base.html" %}
+{% block title %}{{ emp.full_name }} — NORTHWIND{% endblock %}
+
+{#- R1 250.00, not R1250.00. Four-figure lay-bys are common and a wall of
+    digits is hard to read at a glance on a shop-floor tablet. -#}
+{% macro money(x) %}R{{ '{:,.2f}'.format(x or 0)|replace(',', ' ') }}{% endmacro %}
+
+{% macro status_badge(s) %}
+    {% if s == 'active' or s == 'pending' or s == 'partial' %}
+        <span class="badge-status s-active">{{ 'In progress' if s != 'partial' else 'Partially paid' }}</span>
+    {% elif s == 'written_off' %}
+        <span class="badge-status s-off">Written off</span>
+    {% else %}
+        <span class="badge-status s-done">Completed</span>
+    {% endif %}
+{% endmacro %}
+
+{% macro ded_card(d) %}
+    <div class="portal-card">
+        <div class="ded-head">
+            <i class="bi {{ d.icon }}"></i>
+            <span class="ded-cat">{{ d.category }}</span>
+            <span style="margin-left:auto;">{{ status_badge(d.status) }}</span>
+        </div>
+        <div class="ded-desc">{{ d.description }}</div>
+        <div class="ded-detail">
+            <div><div class="k">Monthly</div><div class="v">{{ money(d.monthly) }}</div></div>
+            <div><div class="k">Paid</div><div class="v">{{ money(d.paid) }} / {{ money(d.total) }}</div></div>
+            {% if d.is_active %}
+            <div><div class="k">Still owing</div><div class="v">{{ money(d.remaining) }}</div></div>
+            <div><div class="k">Expected end</div><div class="v">{{ d.expected_end }}</div></div>
+            {% else %}
+            <div><div class="k">Started</div><div class="v">{{ d.start }}</div></div>
+            <div><div class="k">Payments</div><div class="v">{{ d.payments_made }} / {{ d.term }}</div></div>
+            {% endif %}
+        </div>
+        {% if d.is_active and d.term %}
+        <div class="progress-track">
+            <div class="progress-fill" style="width:{{ ((d.payments_made / d.term * 100) if d.term else 0)|round(0, 'floor') }}%;"></div>
+        </div>
+        {#- Without this, a plan on its first month is a bare empty bar that
+            reads as broken rather than as "not started yet". -#}
+        <div class="progress-note">
+            {% if d.payments_made %}{{ d.payments_made }} of {{ d.term }} payments made
+            {% else %}First payment comes off {{ d.start }}{% endif %}
+        </div>
+        {% endif %}
+    </div>
+{% endmacro %}
+
+{% block breadcrumb %}
+    <nav class="crumbs" style="display:flex; align-items:center; justify-content:space-between;">
+        <span style="display:flex; align-items:center; gap:8px;">
+            <a href="{{ url_for('portal_store') }}" title="Back to your store">
+                <i class="bi bi-chevron-left"></i> {{ emp.current_store or 'Store' }}
+            </a>
+            <span class="sep">/</span>
+            <span class="current">{{ emp.full_name }}</span>
+        </span>
+        <a href="{{ url_for('staff_logout') }}" style="font-size:13px; color:var(--text-secondary,#9ca3af);
+            text-decoration:none; display:flex; align-items:center; gap:5px; transition:color .15s;"
+            onmouseover="this.style.color='#9a4632'" onmouseout="this.style.color=''">
+            <i class="bi bi-box-arrow-right"></i> Log out
+        </a>
+    </nav>
+{% endblock %}
+
+{% block content %}
+    {#- Identity, the headline figure and the category split live in ONE card.
+        As four stacked full-width cards they read as four equally important
+        numbers, and a lone category tile stretched by the grid looked like a
+        second total. -#}
+    <div class="portal-card summary-card">
+        <div class="summary-who">
+            <div class="ded-desc" style="font-size:18px;">{{ emp.full_name }}</div>
+            <div class="portal-sub">{{ emp.job_title or 'Staff' }}{% if emp.current_store %} · {{ emp.current_store }}{% endif %}</div>
+        </div>
+
+        <div class="summary-total">
+            <div class="stat-label">Total still owing</div>
+            <div class="summary-total-value">{{ money(outstanding.total) }}</div>
+            {% if clear_after and outstanding.total > 0.005 %}
+            <div class="stat-note">Fully paid up after {{ clear_after.label }}</div>
+            {% elif outstanding.total <= 0.005 %}
+            <div class="stat-note is-good">Nothing is coming off your pay.</div>
+            {% endif %}
+        </div>
+
+        {#- Only the categories that apply, as a right-aligned column so the
+            amounts line up under each other. Rows reading R0.00 were noise. -#}
+        {% set rows = [('Uniform', outstanding.uniform), ('Lay-by', outstanding.layby),
+                       ('Cash handling', outstanding.undercharges)]|selectattr('1', 'gt', 0.005)|list %}
+        {% if rows|length > 1 %}
+        <dl class="summary-split">
+            {% for label, amount in rows %}
+            <dt>{{ label }}</dt><dd>{{ money(amount) }}</dd>
+            {% endfor %}
+        </dl>
+        {% elif rows %}
+        <div class="summary-split-single">All of it is {{ rows[0][0]|lower }}.</div>
+        {% endif %}
+    </div>
+
+    {#- The two questions staff actually ask, answered above the detail. -#}
+    {% if next_due %}
+    <div class="portal-card next-due">
+        <div class="next-due-label">Coming off your next pay</div>
+        <div class="next-due-value">{{ money(next_due.due) }}</div>
+        <div class="next-due-when">{{ next_due.label }}</div>
+    </div>
+    {% endif %}
+
+    {% if overdue %}
+    <div class="portal-card is-overdue">
+        <strong>{{ money(overdue|sum(attribute='due')) }}</strong> was due in
+        {{ overdue|map(attribute='label')|join(', ') }} but has not come off your pay yet.
+        It is included in the total above.
+    </div>
+    {% endif %}
+
+    {% if reimbursements %}
+    <div class="section-label">Reimbursements due to you</div>
+    {% for r in reimbursements %}
+    <div class="portal-card">
+        <div class="ded-head">
+            <i class="bi bi-cash-coin"></i>
+            <span class="ded-cat">Reimbursement · {{ r.period }}</span>
+            <span style="margin-left:auto;">{{ status_badge(r.status) }}</span>
+        </div>
+        <div class="ded-desc">{{ r.description }}</div>
+        <div class="ded-detail">
+            <div><div class="k">Amount</div><div class="v">{{ money(r.total) }}</div></div>
+        </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {#- Asking for something is why staff open this page when they owe nothing, so
+        it sits above the deduction detail rather than at the bottom. -#}
+    <div class="section-label">Ask for something</div>
+    <div class="portal-card req-ask">
+        {% if can_request %}
+        <a class="req-ask-btn" href="{{ url_for('portal_request_new', emp_id=emp.id, kind='uniform') }}">
+            <i class="bi bi-bag-fill"></i><span>Request uniform</span><i class="bi bi-chevron-right req-ask-go"></i>
+        </a>
+        <a class="req-ask-btn" href="{{ url_for('portal_request_new', emp_id=emp.id, kind='layby') }}">
+            <i class="bi bi-cart-fill"></i><span>Request a lay-by</span><i class="bi bi-chevron-right req-ask-go"></i>
+        </a>
+        {% else %}
+        <p class="req-ask-full">You have the maximum number of requests open. Once the office
+            finishes one you can ask for something else.</p>
+        {% endif %}
+    </div>
+
+    {% if requests %}
+    <div class="section-label">My requests <span class="section-count">{{ requests|length }}</span></div>
+    {% for r in requests %}
+    <a class="pick-row req-row" href="{{ url_for('portal_request_detail', req_id=r.id) }}">
+        <div class="req-row-main">
+            <span class="pick-avatar" aria-hidden="true"><i class="bi {{ r.icon }}"></i></span>
+            <div class="req-row-text">
+                <div class="pick-name">{{ r.kind_label }}{% if r.summary %} · {{ r.summary }}{% endif %}</div>
+                <div class="pick-meta">{{ r.ref }} · {{ r.created_at|shortdate }}</div>
+            </div>
+        </div>
+        <span class="badge-status req-s-{{ r.status }}">{{ r.status_label }}</span>
+    </a>
+    {% endfor %}
+    {% endif %}
+
+    <div class="section-label">Active deductions</div>
+    {% if active %}
+        {% for d in active %}{{ ded_card(d) }}{% endfor %}
+    {% else %}
+        <div class="portal-card empty">You have no active deductions. 🎉</div>
+    {% endif %}
+
+    {% if history %}
+    <div class="section-label">History</div>
+        {% for d in history %}{{ ded_card(d) }}{% endfor %}
+    {% endif %}
+{% endblock %}

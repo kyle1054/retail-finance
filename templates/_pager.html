@@ -1,0 +1,55 @@
+{#
+  Shared list pager for the deduction list pages.
+
+  Kept as a macro so all four lists get the same control, and deliberately
+  logic-free: northwind/deductions/pagination.py already decided what is visible and
+  built every URL with the page's filters carried through.
+#}
+{% macro pager(p) -%}
+{%- if p and p.visible %}
+<nav class="list-pager" aria-label="{{ p.noun|capitalize }} pages">
+    <p class="list-pager-status mb-0">
+        {%- if p.show_all %}
+        Showing all {{ p.total }} {{ p.noun }}
+        {%- elif p.total %}
+        Showing {{ p.first_index }}&ndash;{{ p.last_index }} of {{ p.total }} {{ p.noun }}
+        {%- else %}
+        No {{ p.noun }}
+        {%- endif %}
+    </p>
+    <div class="list-pager-controls">
+        {%- if p.show_all %}
+        <a class="btn btn-sm btn-outline-secondary" href="{{ p.paged_url }}">
+            <i class="bi bi-collection me-1"></i>Show {{ p.per_page }} per page
+        </a>
+        {%- else %}
+        {%- if p.prev_url %}
+        <a class="btn btn-sm btn-outline-secondary" href="{{ p.prev_url }}" rel="prev">
+            <i class="bi bi-chevron-left"></i><span class="visually-hidden">Previous page</span>
+        </a>
+        {%- else %}
+        <span class="btn btn-sm btn-outline-secondary disabled" aria-hidden="true"><i class="bi bi-chevron-left"></i></span>
+        {%- endif %}
+        {%- for link in p.links %}
+        {%- if link.gap %}
+        <span class="list-pager-gap" aria-hidden="true">&hellip;</span>
+        {%- elif link.current %}
+        <span class="btn btn-sm btn-primary" aria-current="page">{{ link.number }}</span>
+        {%- else %}
+        <a class="btn btn-sm btn-outline-secondary" href="{{ link.url }}"
+           aria-label="Page {{ link.number }}">{{ link.number }}</a>
+        {%- endif %}
+        {%- endfor %}
+        {%- if p.next_url %}
+        <a class="btn btn-sm btn-outline-secondary" href="{{ p.next_url }}" rel="next">
+            <i class="bi bi-chevron-right"></i><span class="visually-hidden">Next page</span>
+        </a>
+        {%- else %}
+        <span class="btn btn-sm btn-outline-secondary disabled" aria-hidden="true"><i class="bi bi-chevron-right"></i></span>
+        {%- endif %}
+        <a class="btn btn-sm btn-link list-pager-all" href="{{ p.all_url }}">Show all {{ p.total }}</a>
+        {%- endif %}
+    </div>
+</nav>
+{%- endif %}
+{%- endmacro %}

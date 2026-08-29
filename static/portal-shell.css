@@ -1,0 +1,323 @@
+/* Staff / cardholder / RM portal shell.
+ *
+ * Every colour, radius and shadow here comes from the tokens in style.css, so
+ * the portal reads as the same product as the admin app rather than a cousin of
+ * it. The dark hex fallbacks this file used to carry (#1a1d24, #534877) were
+ * dead — style.css always loads first and defines every variable — but they
+ * made the intended theme impossible to read from the source, and the cards
+ * resolved to --bg-elevated (the off-white INPUT tint) instead of --bg-surface,
+ * which is why the portal looked subtly beige next to the white admin cards.
+ *
+ * Money figures use tabular-nums throughout: without it, digits are
+ * proportional and a column of rands never lines up.
+ */
+
+.portal-body { background: var(--bg-base); min-height: 100vh; }
+.portal-shell { max-width: 760px; margin: 0 auto; padding: 24px 16px 64px; }
+
+/* ── Top bar ───────────────────────────────────────────────────────────────── */
+.portal-topbar { display: flex; align-items: center; gap: 8px; }
+.portal-header { display: flex; align-items: center; gap: 12px; padding: 12px 14px; flex: 1;
+    min-width: 0; text-decoration: none; border-radius: var(--radius); transition: background .12s; }
+.portal-header:hover { background: var(--bg-hover); }
+.portal-home-hint { margin-left: auto; font-size: 18px; color: var(--text-secondary); }
+.portal-header .brand-icon { width: 40px; height: 40px; border-radius: var(--radius-sm);
+    display: flex; align-items: center; justify-content: center; flex: 0 0 40px;
+    background: var(--accent); color: #fff; font-size: 20px; }
+.portal-title { font-family: 'Inter', sans-serif; font-weight: 700; font-size: 18px;
+    line-height: 1.15; color: var(--text-primary); }
+.portal-sub { font-size: 13px; color: var(--text-secondary); }
+
+.admin-pill { font-size: 12px; font-weight: 600; color: var(--text-secondary);
+    text-decoration: none; padding: 8px 12px; border-radius: var(--radius-sm);
+    border: 1px solid var(--border); }
+.admin-pill:hover { color: var(--text-primary); border-color: var(--border-hover); }
+
+/* ── Breadcrumb ────────────────────────────────────────────────────────────── */
+.crumbs { display: flex; align-items: center; gap: 8px; font-size: 13px;
+    margin: 4px 0 18px; min-height: 24px; }
+.crumbs a { color: var(--text-secondary); text-decoration: none; display: inline-flex;
+    align-items: center; gap: 5px; }
+.crumbs a:hover { color: var(--text-primary); }
+.crumbs .sep { opacity: .45; flex: 0 0 auto; }
+.crumbs .current { color: var(--text-primary); font-weight: 600; }
+/* The trail shrinks and the ancestor truncates, so "Log out" stays on the same
+   line. "Stonebridge - Fairhaven" used to wrap and push it onto its own row,
+   which read as a misaligned page on a phone. The person's own name never
+   truncates — it is the one label that identifies whose figures these are. */
+.crumbs > span:first-child { display: flex; align-items: center; gap: 8px;
+    flex: 1 1 auto; min-width: 0; }
+.crumbs > span:first-child > a { flex: 0 1 auto; min-width: 0; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
+.crumbs > span:first-child > a i { flex: 0 0 auto; }
+.crumbs > span:first-child .current { flex: 0 0 auto; }
+.crumbs > a:last-child { flex: 0 0 auto; }
+
+/* ── Cards ─────────────────────────────────────────────────────────────────── */
+.portal-card { background: var(--bg-surface); border: 1px solid var(--border);
+    border-radius: var(--radius); box-shadow: var(--shadow-sm);
+    padding: 20px; margin-bottom: 14px; }
+.portal-back { display: inline-flex; align-items: center; gap: 6px;
+    color: var(--text-secondary); text-decoration: none; font-size: 14px; margin-bottom: 16px; }
+.portal-back:hover { color: var(--text-primary); }
+
+/* ── Tappable rows (store staff list, card picker, workspace links) ─────────
+   min-height keeps a one-line row from feeling cramped next to a wrapped one,
+   and clears the 44px minimum tap target on a till tablet. */
+.pick-row { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    min-height: 68px; padding: 14px 16px; border: 1px solid var(--border);
+    border-radius: var(--radius); background: var(--bg-surface);
+    box-shadow: var(--shadow-sm); text-decoration: none; margin-bottom: 10px;
+    transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease; }
+.pick-row:hover { border-color: var(--border-hover); transform: translateY(-1px);
+    box-shadow: var(--shadow); }
+.pick-name { font-weight: 600; color: var(--text-primary); }
+.pick-meta { font-size: 13px; color: var(--text-secondary); }
+
+/* Initials, matching the .emp-avatar treatment in the admin app. */
+.pick-avatar { flex: 0 0 40px; width: 40px; height: 40px; border-radius: 50%;
+    display: grid; place-items: center; font-size: 13px; font-weight: 700;
+    letter-spacing: .03em; background: var(--accent); color: #fff; }
+
+/* ── Headline figures ──────────────────────────────────────────────────────── */
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px; align-items: stretch; }
+.stat { display: flex; flex-direction: column; background: var(--bg-surface);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow-sm); padding: 16px; }
+.stat-label { font-size: 11.5px; color: var(--text-secondary); text-transform: uppercase;
+    letter-spacing: .05em; font-weight: 600; }
+.stat-value { font-family: 'Inter', sans-serif; font-size: 24px; font-weight: 750;
+    font-variant-numeric: tabular-nums; color: var(--text-primary); margin-top: 6px;
+    line-height: 1.15; }
+.stat-note { font-size: 12.5px; color: var(--text-secondary); margin-top: 6px; line-height: 1.45; }
+.stat-note.is-good { color: var(--success-text); font-weight: 600; }
+
+/* Who / how much / split, in one card. Internal dividers rather than separate
+   cards, so the hierarchy is obvious: one headline, one breakdown. */
+.summary-card { padding: 0; overflow: hidden; }
+.summary-who { padding: 18px 20px; border-bottom: 1px solid var(--border); }
+.summary-total { padding: 18px 20px; }
+.summary-total-value { font-family: 'Inter', sans-serif; font-size: 32px; font-weight: 750;
+    font-variant-numeric: tabular-nums; color: var(--text-primary); line-height: 1.1;
+    margin-top: 6px; }
+/* Two columns: label left, amount hard right. The amounts sit in one column so
+   they can be compared down the page without re-reading the labels. */
+.summary-split { display: grid; grid-template-columns: 1fr auto; gap: 8px 16px;
+    margin: 0; padding: 14px 20px 18px; border-top: 1px solid var(--border-light); }
+.summary-split dt { font-size: 13px; color: var(--text-secondary); font-weight: 500; }
+.summary-split dd { margin: 0; text-align: right; font-family: 'Inter', sans-serif;
+    font-size: 14px; font-weight: 650; font-variant-numeric: tabular-nums;
+    color: var(--text-primary); }
+.summary-split-single { padding: 0 20px 18px; font-size: 13px; color: var(--text-secondary); }
+
+/* "Coming off your next pay" — the most-asked question, so it gets its own card
+   rather than being buried in the plan detail. */
+.next-due { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 12px; }
+.next-due-label { flex: 1 0 100%; font-size: 11.5px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .05em; color: var(--text-secondary);
+    margin-bottom: 4px; }
+.next-due-value { font-family: 'Inter', sans-serif; font-size: 26px; font-weight: 750;
+    font-variant-numeric: tabular-nums; color: var(--text-primary); line-height: 1.1; }
+.next-due-when { font-size: 14px; color: var(--text-secondary); }
+
+/* An instalment that fell due and was never collected. Flagged, not hidden: it
+   is money the ledger still wants, and it must not read as "coming up". */
+.portal-card.is-overdue { border-color: rgba(214, 67, 21, .3);
+    background: var(--warning-bg); color: var(--text-primary);
+    font-size: 13.5px; line-height: 1.55; box-shadow: none; }
+.portal-card.is-overdue strong { font-variant-numeric: tabular-nums; }
+
+/* ── One deduction plan ────────────────────────────────────────────────────── */
+.ded-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.ded-cat { font-size: 11.5px; font-weight: 600; color: var(--text-secondary);
+    text-transform: uppercase; letter-spacing: .05em; }
+.ded-desc { font-weight: 600; color: var(--text-primary); line-height: 1.45; }
+.ded-detail { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 12px; margin-top: 14px; align-items: start; }
+.ded-detail .k { font-size: 11px; color: var(--text-secondary); text-transform: uppercase;
+    letter-spacing: .04em; font-weight: 600; }
+.ded-detail .v { font-family: 'Inter', sans-serif; font-size: 15px; font-weight: 650;
+    font-variant-numeric: tabular-nums; color: var(--text-primary); margin-top: 3px; }
+.progress-track { height: 6px; background: var(--accent-soft); border: 1px solid var(--border);
+    border-radius: var(--radius-pill); margin-top: 14px; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--accent); border-radius: inherit; }
+.progress-note { font-size: 12px; color: var(--text-secondary); margin-top: 7px; }
+
+/* ── Section headings ─────────────────────────────────────────────────────── */
+.section-label { display: flex; align-items: center; gap: 8px; font-size: 12px;
+    font-weight: 700; color: var(--text-secondary); text-transform: uppercase;
+    letter-spacing: .06em; margin: 26px 0 12px; }
+.section-count { padding: 1px 8px; border-radius: var(--radius-pill);
+    background: var(--accent-soft); border: 1px solid var(--border);
+    color: var(--text-secondary); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+
+/* ── Status pills, using the app's own status palette ──────────────────────── */
+.badge-status { font-size: 11px; padding: 3px 9px; border-radius: var(--radius-pill);
+    font-weight: 600; white-space: nowrap; }
+.s-active { background: var(--accent-soft); color: var(--text-primary); border: 1px solid var(--border); }
+.s-done { background: var(--success-bg); color: var(--success-text); }
+.s-off { background: var(--bg-hover); color: var(--text-secondary); }
+
+.empty { text-align: center; color: var(--text-secondary); padding: 32px 0; }
+
+/* ── Flashes ──────────────────────────────────────────────────────────────── */
+.portal-flashes { margin: 0 0 14px; display: flex; flex-direction: column; gap: 8px; }
+.portal-flash { padding: 11px 14px; border-radius: var(--radius-sm); font-size: 14px; font-weight: 500; }
+.portal-flash-success { background: var(--success-bg); color: var(--success-text); }
+.portal-flash-danger  { background: var(--error-bg); color: var(--error-text); }
+.portal-flash-warning { background: var(--warning-bg); color: var(--warning-text); }
+.portal-flash-info    { background: var(--accent-soft); color: var(--text-primary); }
+
+/* ── Staff requests ────────────────────────────────────────────────────────── */
+/* Shop-floor TABLET first: nothing tappable is under 52px, inputs are 16px so
+   iPadOS doesn't zoom the page on focus, and the ask sits two-up once there is
+   room. Styled purely by class — the request templates carry no style attributes
+   (CSP inventory gate). */
+.crumb-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+
+/* ── "Ask for something" ──────────────────────────────────────────────────── */
+.req-ask { display: grid; grid-template-columns: 1fr; gap: 12px; }
+.req-ask-btn { display: flex; align-items: center; gap: 14px; padding: 18px 18px;
+    min-height: 68px; border: 1px solid var(--border); border-radius: var(--radius);
+    background: var(--bg-surface); color: var(--text-primary); font-size: 16px;
+    font-weight: 650; text-decoration: none;
+    transition: border-color .15s, transform .15s; }
+.req-ask-btn:hover, .req-ask-btn:active { border-color: var(--border-hover);
+    transform: translateY(-1px); }
+.req-ask-btn > i:first-child { flex: 0 0 42px; width: 42px; height: 42px;
+    border-radius: var(--radius-sm); display: flex; align-items: center;
+    justify-content: center; font-size: 19px;
+    background: var(--accent-soft); color: var(--text-primary); }
+.req-ask-go { margin-left: auto; color: var(--text-secondary); font-size: 15px; }
+.req-ask-full { margin: 0; font-size: 14.5px; color: var(--text-secondary); line-height: 1.55; }
+@media (min-width: 560px) { .req-ask { grid-template-columns: 1fr 1fr; } }
+
+/* ── "My requests" rows ───────────────────────────────────────────────────── */
+.req-row { text-decoration: none; min-height: 72px; }
+/* Two lines maximum for the item summary — a twenty-item lay-by otherwise made
+   this single row 980px tall (2 600px on a phone). */
+.req-row .pick-name { display: -webkit-box; -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical; overflow: hidden; }
+.req-row .badge-status { flex: 0 0 auto; }
+.req-row-main { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.req-row-text { min-width: 0; }
+
+/* A request has more states than a plan, so its pills get their own names
+   rather than overloading .s-active. */
+.req-s-submitted { background: var(--warning-bg); color: var(--warning-text); }
+.req-s-in_progress { background: var(--accent-soft); color: var(--text-primary);
+    border: 1px solid var(--border); }
+.req-s-info_needed { background: var(--warning-bg); color: var(--warning-text); }
+.req-s-approved { background: var(--success-bg); color: var(--success-text); }
+.req-s-fulfilled { background: var(--success-bg); color: var(--success-text); }
+.req-s-declined { background: var(--error-bg); color: var(--error-text); }
+.req-s-cancelled { background: var(--bg-hover); color: var(--text-secondary); }
+.req-status-slot { margin-left: auto; }
+
+/* ── The ask form ─────────────────────────────────────────────────────────── */
+/* One compact ROW per item, not a stack of tall boxes: a store asking for two
+   things must never have to scroll an iPad to reach Send. Captions live in a
+   header row on a tablet and inside each field on a phone (where rows wrap). */
+.req-form { display: flex; flex-direction: column; gap: 18px; }
+.req-lede { margin: 0; font-size: 15px; color: var(--text-secondary); line-height: 1.6; }
+.req-lede strong { color: var(--text-primary); font-weight: 650; }
+
+.req-lines { display: flex; flex-direction: column; gap: 10px; }
+.req-line-head, .req-line {
+    display: grid; gap: 10px;
+    grid-template-columns: minmax(0, 1.7fr) minmax(0, 1.1fr) 88px 74px 104px;
+}
+.req-line-head { padding: 0 2px; font-size: 11.5px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .06em; color: var(--text-secondary); }
+.req-cell { display: block; margin: 0 !important; min-width: 0; }
+.req-cap { display: block; font-size: 11.5px; font-weight: 650; margin-bottom: 4px;
+    color: var(--text-secondary); }
+.req-line.is-extra input { background: var(--bg-surface); }
+
+/* Tablet and up: the header row carries the captions, so the per-field ones are
+   kept for screen readers only rather than removed. */
+@media (min-width: 620px) {
+    .req-cap { position: absolute; width: 1px; height: 1px; overflow: hidden;
+        clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+}
+/* Phone: three short lines per item (name / SKU+size / qty+price) with the
+   captions back in view. Giving price its own full-width line made each item
+   350px tall — a four-item ask became a 1 400px scroll. */
+@media (max-width: 619px) {
+    .req-line-head { display: none; }
+    .req-line { grid-template-columns: 1fr 1fr; gap: 8px 10px; padding: 12px;
+        border: 1px solid var(--border); border-radius: var(--radius); }
+    .req-cell-item { grid-column: 1 / -1; }
+    .req-cap { margin-bottom: 3px; }
+}
+
+.req-two { display: grid; grid-template-columns: 1fr; gap: 14px; }
+@media (min-width: 620px) { .req-two { grid-template-columns: 220px 1fr; } }
+.req-field { display: flex; flex-direction: column; }
+.req-form label { display: block; font-size: 13.5px; font-weight: 600;
+    color: var(--text-secondary); margin: 0 0 7px; }
+.req-form input, .req-form select, .req-form textarea {
+    width: 100%; min-height: 52px; padding: 13px 14px; font-size: 16px;
+    font-family: inherit; color: var(--text-primary); background: var(--bg-base);
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    -webkit-appearance: none; appearance: none; }
+.req-form select { padding-right: 42px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23615b5c'%3E%3Cpath d='M3.2 5.6 8 10.4l4.8-4.8 1.2 1.2L8 12.8 2 6.8z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 15px center;
+    background-size: 14px; }
+.req-form textarea { min-height: 96px; resize: vertical; }
+.req-form input:focus, .req-form select:focus, .req-form textarea:focus {
+    outline: none; border-color: var(--accent); }
+.req-cell-qty input, .req-cell-size input { text-align: center; }
+
+.req-send { display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    padding-top: 4px; }
+.req-submit { display: inline-flex; align-items: center; justify-content: center;
+    gap: 10px; min-height: 56px; padding: 14px 30px; font-size: 16.5px;
+    font-weight: 700; cursor: pointer; color: #fff; background: var(--text-primary);
+    border: none; border-radius: var(--radius-sm); }
+.req-submit:hover, .req-submit:active { opacity: .9; }
+.req-foot { flex: 1 1 240px; margin: 0; font-size: 13.5px; color: var(--text-secondary); }
+
+/* ── One request ──────────────────────────────────────────────────────────── */
+.req-item-list { list-style: none; margin: 14px 0 0; padding: 0; }
+.req-item-list li { display: flex; justify-content: space-between; gap: 14px;
+    padding: 11px 0; border-bottom: 1px solid var(--border); font-size: 15px; }
+.req-item-list li:last-child { border-bottom: none; }
+.req-item-name { color: var(--text-primary); }
+.req-item-price { color: var(--text-secondary); font-variant-numeric: tabular-nums;
+    white-space: nowrap; }
+.req-note { margin: 14px 0 0; font-size: 14.5px; color: var(--text-secondary);
+    font-style: italic; line-height: 1.55; }
+.req-outcome { margin: 14px 0 0; font-size: 14.5px; font-weight: 600; line-height: 1.5; }
+.req-outcome.is-good { color: var(--success-text); }
+.req-outcome.is-bad { color: var(--error-text); }
+.req-outcome.is-wait { color: var(--warning-text); }
+
+.req-thread { display: flex; flex-direction: column; gap: 14px; }
+/* Long unbroken tokens — an admin email, a SKU, a pasted product code — have no
+   space to wrap at, and a phone would scroll sideways rather than break them. */
+.req-event-head strong, .req-event-body, .req-event-meta,
+.req-item-name, .req-note, .req-outcome { overflow-wrap: anywhere; }
+.req-event-head { display: flex; align-items: baseline; gap: 8px; font-size: 13px;
+    color: var(--text-secondary); }
+.req-event-at { font-variant-numeric: tabular-nums; }
+.req-event-body { margin-top: 4px; font-size: 15px; color: var(--text-primary);
+    line-height: 1.5; }
+.req-event-meta { margin-top: 4px; font-size: 14px; color: var(--text-secondary); }
+.req-cancel-form { margin-top: 14px; text-align: center; }
+.req-cancel { min-height: 52px; padding: 14px 18px; background: none; border: none;
+    cursor: pointer; font-size: 14.5px; color: var(--text-secondary);
+    text-decoration: underline; }
+.req-cancel:hover, .req-cancel:active { color: var(--error-text); }
+
+/* SKU chip on a submitted request's item line. */
+.req-item-sku { display: inline-block; margin-left: 6px; padding: 1px 7px;
+    border-radius: var(--radius-sm); background: var(--bg-hover);
+    font-size: 12px; font-weight: 650; color: var(--text-secondary);
+    font-variant-numeric: tabular-nums; }
+
+/* The plan a finished request became — "how much comes off, for how long, from
+   when" is the first thing the staff member wants to know. */
+.req-plan { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }

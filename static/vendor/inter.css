@@ -1,0 +1,35 @@
+/* Inter — ONE @font-face, because there is only one font file.
+ *
+ * This used to be six @font-face rules pointing at inter-300/400/500/600/700/800
+ * .woff2. All six files were BYTE-IDENTICAL (md5 65850a373e258f1c897a2b3d75eb74de):
+ * a page that used four weights downloaded the same 47 KB file four times, because
+ * each URL is a separate cache entry to the browser.
+ *
+ * They were identical because the file is the Inter VARIABLE font — one `wght`
+ * axis from 100 to 900, not a static weight. So the correct declaration is a
+ * single face with a weight RANGE: every `font-weight:` in the app's CSS still
+ * resolves (including in-between values like 650, which now render exactly
+ * instead of snapping to the nearest of the six), from one download.
+ *
+ * The filename keeps its historical `-400` suffix so nothing that references it
+ * breaks; it is the whole variable font, not the Regular weight. The other five
+ * copies were deleted.
+ *
+ * unicode-range is unchanged — it is what keeps the browser from downloading the
+ * file at all for pages of pure non-Latin text, and limits which characters fall
+ * back to the next family in the stack.
+ *
+ * The ?v= is the font's content hash, which is what earns it the year-long
+ * immutable cache header (northwind/core.py only grants that to a URL carrying the
+ * file's CURRENT hash — a stale one just means an ordinary revalidation, never a
+ * stale font). A url_for() can't reach inside a stylesheet, so it is written by
+ * hand here; tests/test_asset_delivery.py fails if it drifts from the file.
+ */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('./fonts/inter-400.woff2?v=c940764593') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}

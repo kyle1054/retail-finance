@@ -1,0 +1,48 @@
+{% extends "portal_base.html" %}
+{% block title %}{{ store }} — NORTHWIND{% endblock %}
+
+{% block breadcrumb %}
+    <nav class="crumbs" style="display:flex; align-items:center; justify-content:space-between;">
+        <span class="current"><i class="bi bi-shop"></i> {{ store }}</span>
+        <a href="{{ url_for('staff_logout') }}" style="font-size:13px; color:var(--text-secondary,#9ca3af);
+            text-decoration:none; display:flex; align-items:center; gap:5px; transition:color .15s;"
+            onmouseover="this.style.color='#9a4632'" onmouseout="this.style.color=''">
+            <i class="bi bi-box-arrow-right"></i> Log out
+        </a>
+    </nav>
+{% endblock %}
+
+{% block content %}
+    {#- The old "Staff: 4" tile ate the top of a phone screen to restate what the
+        list below already shows. The count now rides on the section label. -#}
+    <a class="pick-row" href="{{ url_for('cash_home') }}">
+        <div style="display:flex; align-items:center; gap:12px;">
+            <span class="brand-icon" style="background:rgba(47,125,112,.18); color:#3b8f7e;"><i class="bi bi-cash-stack"></i></span>
+            <div>
+                <div class="pick-name">Cash Recon</div>
+                <div class="pick-meta">Log store expenses, float &amp; receipts</div>
+            </div>
+        </div>
+        <i class="bi bi-chevron-right" style="color:var(--text-secondary,#9ca3af);"></i>
+    </a>
+
+    <div class="section-label">Tap your name to see your deductions{% if staff %}
+        <span class="section-count">{{ staff|length }}</span>{% endif %}</div>
+    {% for s in staff %}
+    {% set parts = s.full_name.replace(',', ' ').split() %}
+    <a class="pick-row" href="{{ url_for('portal_store_employee', emp_id=s.id) }}">
+        <div style="display:flex; align-items:center; gap:12px; min-width:0;">
+            {#- Initials make a familiar name findable at a glance, which matters
+                when several staff share one tablet at the till. -#}
+            <span class="pick-avatar" aria-hidden="true">{{ parts[0][0] }}{% if parts|length > 1 %}{{ parts[-1][0] }}{% endif %}</span>
+            <div style="min-width:0;">
+                <div class="pick-name">{{ s.full_name }}</div>
+                <div class="pick-meta">{{ s.job_title or 'Staff' }}</div>
+            </div>
+        </div>
+        <i class="bi bi-chevron-right" style="color:var(--text-secondary,#9ca3af); flex:0 0 auto;"></i>
+    </a>
+    {% else %}
+    <div class="empty">No active staff found for this store.</div>
+    {% endfor %}
+{% endblock %}

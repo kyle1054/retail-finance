@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <script src="{{ url_for('static', filename='csrf.js') }}"></script>
+    <script src="{{ url_for('static', filename='shell-common.js') }}"></script>
+    <title>{% block title %}Northwind Deductions{% endblock %}</title>
+    <link href="{{ url_for('static', filename='vendor/inter.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='vendor/bootstrap.purged.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='vendor/bootstrap-icons.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='style.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='nw-refresh.css') }}" rel="stylesheet">
+    <script src="{{ url_for('static', filename='scroll-continuity.js') }}" defer></script>
+</head>
+<body data-home-url="{{ url_for(current_workspace.endpoint) }}"
+      {% if current_workspace.key in ('retail','hq') %}
+      data-employees-url="{{ url_for(current_workspace.employees_ep) }}"
+      data-payroll-url="{{ url_for(current_workspace.monthly_ep) }}"
+      {% endif %}>
+<a class="skip-link" href="#mainContent">Skip to main content</a>
+<div class="app-wrapper">
+
+    <!-- Sidebar -->
+    <nav class="sidebar" id="appSidebar" aria-label="Application navigation">
+        <div class="dropdown sidebar-brand-wrap">
+            <button class="sidebar-brand" type="button" id="workspaceSwitcher"
+                    data-bs-toggle="dropdown" aria-expanded="false">
+                <span class="brand-icon"><i class="bi {{ current_workspace.icon }}"></i></span>
+                <div class="brand-text">
+                    <div class="brand-name">{{ current_workspace.name }}</div>
+                    <div class="brand-sub">{{ current_workspace.sub }}</div>
+                </div>
+                <i class="bi bi-chevron-expand brand-caret"></i>
+            </button>
+            <ul class="dropdown-menu workspace-menu" aria-labelledby="workspaceSwitcher">
+                <li class="workspace-menu-label">Account</li>
+                <li><a class="dropdown-item workspace-item" href="{{ url_for('landing') }}">
+                    <i class="bi bi-grid-fill"></i><span>Home</span></a></li>
+                {% if session.admin and session.cc_user %}
+                <li><a class="dropdown-item workspace-item" href="{{ url_for('cc_portal') }}">
+                    <i class="bi bi-person-badge"></i><span>My card portal</span></a></li>
+                {% endif %}
+                {% if session.admin %}
+                <li><a class="dropdown-item workspace-item" href="{{ url_for('admin_change_password') }}">
+                    <i class="bi bi-key-fill"></i><span>Change password</span></a></li>
+                {% endif %}
+                <li><button class="dropdown-item workspace-item" type="button" data-bs-toggle="modal" data-bs-target="#shortcutModal">
+                    <i class="bi bi-command"></i><span>Keyboard shortcuts</span></button></li>
+                <li><a class="dropdown-item workspace-item" href="{{ url_for('admin_logout') }}">
+                    <i class="bi bi-box-arrow-right"></i><span>Log out</span></a></li>
+            </ul>
+        </div>
+
+        <!-- Products and scopes are separate concepts: Deductions / Cards / Cash
+             are products; Retail / HQ are scopes inside Deductions. -->
+        <div class="shell-nav-label">Products</div>
+        <div class="module-tabs" aria-label="Workspaces">
+            {% set nav = namespace(deductions_done=false) %}
+            {% for ws in workspaces %}
+                {% if ws.key in ('retail', 'hq') and not nav.deductions_done %}
+                <a href="{{ url_for(ws.endpoint) }}"
+                   class="module-tab {% if current_workspace.key in ('retail','hq') %}active{% endif %}">
+                    <i class="bi bi-layers"></i><span>Deductions</span>
+                </a>
+                {% set nav.deductions_done = true %}
+                {% elif ws.key == 'creditcard' %}
+                <a href="{{ url_for(ws.endpoint) }}"
+                   class="module-tab {% if current_workspace.key == 'creditcard' %}active{% endif %}">
+                    <i class="bi bi-credit-card"></i><span>Cards</span>
+                </a>
+                {% elif ws.key == 'cashrecon' %}
+                <a href="{{ url_for(ws.endpoint) }}"
+                   class="module-tab {% if current_workspace.key == 'cashrecon' %}active{% endif %}">
+                    <i class="bi bi-cash-stack"></i><span>Cash</span>
+                </a>
+                {% endif %}
+            {% endfor %}
+        </div>
+        {% if current_workspace.key in ('retail', 'hq') %}
+        <div class="shell-nav-label shell-scope-label">Deductions scope</div>
+        <div class="scope-switch" aria-label="Deductions scope">
+            {% for ws in workspaces if ws.key in ('retail', 'hq') %}
+            <a href="{{ url_for(ws.endpoint) }}"
+               class="scope-option {% if ws.key == current_workspace.key %}active{% endif %}">{{ ws.tab }}</a>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% set ded_open = request.endpoint in ('uniforms_list','laybys_list','undercharges_list','requests_list') %}
+        {% set pay_open = request.endpoint in ('payroll_sheet','payroll_period','payroll_sync','payroll_reconcile') or 'monthly' in (request.endpoint or '') %}
+        {% set tools_open = request.endpoint in ('invoice_search','recent_activity','stores_report','import_center','download_backup') %}
+        {% set settings_open = request.endpoint in ('admin_staff_logins','admin_manage_admins','admin_regional_managers','admin_email') %}
+
+        <div class="shell-nav-label shell-section-label">{{ current_workspace.tab }} workspace</div>
+
+        {% if current_workspace.key == 'hq' %}
+        <!-- HQ workspace: lay-by focused (Employees, Lay-bys, Monthly) -->
+        <ul class="sidebar-nav">
+            <li>
+                <a href="{{ url_for('hq_employees') }}" class="sidebar-link {% if 'hq_employee' in (request.endpoint or '') %}active{% endif %}">
+                    <i class="bi bi-people-fill"></i><span>Employees</span>
+                </a>
+            </li>
+            <li>
+                <a href="{{ url_for('hq_laybys_list') }}" class="sidebar-link {% if request.endpoint == 'hq_laybys_list' %}active{% endif %}">
+                    <i class="bi bi-cart-fill"></i><span>Lay-bys</span>
+                </a>
+            </li>
+            <li>
+                <a href="{{ url_for('hq_allowances') }}" class="sidebar-link {% if 'hq_allowance' in (request.endpoint or '') %}active{% endif %}">
+                    <i class="bi bi-wallet2"></i><span>Allowances</span>
+                </a>
+            </li>
+            <li>
+                <a href="{{ url_for('hq_monthly_current') }}" class="sidebar-link {% if 'hq_monthly' in (request.endpoint or '') %}active{% endif %}">
+                    <i class="bi bi-calendar-check"></i><span>Monthly</span>
+                </a>
+            </li>
+            <li><hr class="sidebar-divider"></li>
+            {% if session.admin_role in (none, 'super') %}
+            <!-- Settings group -->
+            <li>
+                <button class="sidebar-link nav-group-btn" type="button"
+                        data-bs-toggle="collapse" data-bs-target="#navSettings"
+                        aria-expanded="{{ 'true' if settings_open else 'false' }}">
+                    <i class="bi bi-gear-fill"></i>
+                    <span>Settings</span>
+                    <i class="bi bi-chevron-down nav-chevron {% if settings_open %}open{% endif %}"></i>
+                </button>
+                <div class="collapse {% if settings_open %}show{% endif %}" id="navSettings">
+                    <ul class="nav-sub">
+                        <li><a href="{{ url_for('admin_staff_logins') }}" class="sidebar-link nav-sub-link {% if request.endpoint == 'admin_staff_logins' %}active{% endif %}">
+                            <i class="bi bi-key-fill"></i><span>Staff Logins</span></a></li>
+                        <li><a href="{{ url_for('admin_manage_admins') }}" class="sidebar-link nav-sub-link {% if request.endpoint == 'admin_manage_admins' %}active{% endif %}">
+                            <i class="bi bi-shield-lock-fill"></i><span>People &amp; Access</span></a></li>
+                        <li><a href="{{ url_for('admin_regional_managers') }}" class="sidebar-link nav-sub-link {% if request.endpoint == 'admin_regional_managers' %}active{% endif %}">
+                            <i class="bi bi-person-badge-fill"></i><span>Regional Managers</span></a></li>
+                        <li><a href="{{ url_for('admin_email') }}" class="sidebar-link nav-sub-link {% if request.endpoint == 'admin_email' %}active{% endif %}">
+                            <i class="bi bi-envelope-fill"></i><span>Email</span></a></li>
+                    </ul>
+                </div>
+            </li>
+            {% endif %}
+            <li>
+                <a href="{{ url_for('admin_logout') }}" class="sidebar-link nav-util-link">
+                    <i class="bi bi-box-arrow-right"></i><span>Log out</span>
+                </a>
+            </li>
+        </ul>
+        {% elif current_workspace.key == 'creditcard' %}
+        <!-- Credit Card workspace: cards grid + bulk upload -->
+        <ul class="sidebar-nav">
+            <li>
+                <a href="{{ url_for('cc_home') }}" class="sidebar-link {% if request.endpoint in ('cc_home','cc_card') %}active{% endif %}">
+                    <i class="bi bi-credit-card-2-front-fill"></i><span>Cards</span>
+                </a>
+            </li>
+            <li>
+                <a href="{{ url_for('cc_upload') }}" class="sidebar-link {% if request.endpoint == 'cc_upload' %}active{% endif %}">
+                    <i class="bi bi-file-earmark-arrow-up"></i><span>Upload Reports</span>
+                </a>
+            </li>
+            <li><hr class="sidebar-divider"></li>
+            <li>
+                <a href="{{ url_for('admin_logout') }}" class="sidebar-link nav-util-link">
+                    <i class="bi bi-box-arrow-right"></i><span>Log out</span>
+                </a>
+            </li>
+        </ul>
+        {% elif current_workspace.key == 'cashrecon' %}
+        <!-- Cash Recon workspace: all-stores overview + per-store picker -->
+        <ul class="sidebar-nav">
+            <li>
+                <a href="{{ url_for('cash_home') }}" class="sidebar-link {% if request.endpoint in ('cash_home',) %}active{% endif %}">
+                    <i class="bi bi-grid-1x2-fill"></i><span>Overview</span>
+                </a>
+            </li>
+            {% if all_stores %}
+            <li>
+                <button class="sidebar-link nav-group-btn" type="button"
+                        data-bs-toggle="collapse" data-bs-target="#navCashStores"
+                        aria-expanded="{{ 'true' if request.endpoint in ('cash_summary','cash_day','cash_ledger') else 'false' }}">
+                    <i class="bi bi-shop"></i>
+                    <span>Stores</span>
+                    <i class="bi bi-chevron-down nav-chevron {% if request.endpoint in ('cash_summary','cash_day','cash_ledger') %}open{% endif %}"></i>
+                </button>
+                <div class="collapse {% if request.endpoint in ('cash_summary','cash_day','cash_ledger') %}show{% endif %}" id="navCashStores">
+                    <ul class="nav-sub">
+                        {% for s in all_stores %}
+                        <li><a href="{{ url_for('cash_store', store=s) }}" class="sidebar-link nav-sub-link {% if store is defined and store == s %}active{% endif %}">
+                            <i class="bi bi-cash-stack"></i><span>{{ s }}</span></a></li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </li>
+            {% endif %}
+            <li><hr class="sidebar-divider"></li>
+            <li>
+                <a href="{{ url_for('admin_logout') }}" class="sidebar-link nav-util-link">
+                    <i class="bi bi-box-arrow-right"></i><span>Log out</span>
+                </a>
+            </li>
+        </ul>
+        {% else %}
+
+        <ul class="sidebar-nav">
+
+            <li>
+                <a href="{{ url_for('dashboard') }}" class="sidebar-link {% if request.endpoint == 'dashboard' %}active{% endif %}">
+                    <i class="bi bi-grid-1x2-fill"></i><span>Dashboard</span>
+                </a>
+            </li>
+            <li>
+                <a href="{{ url_for('employees') }}" class="sidebar-link {% if 'employee' in (request.endpoint or '') %}active{% endif %}">
+                    <i class="bi bi-people-fill"></i><span>Employees</span>
+                </a>
+            </li>
+
+            <!-- Deductions group -->
+            <li>
+                <button class="sidebar-link nav-group-btn" type="button"
+                        data-bs-toggle="collapse" data-bs-target="#navDeductions"
+                        aria-expanded="{{ 'true' if ded_open else 'false' }}">
+                    <i class="bi bi-layers-fill"></i>
+                    <span>Deductions</span>
+                    <i class="bi bi-chevron-down nav-chevron {% if ded_open %}open{% endif %}"></i>
+                </button>
+                <div class="collapse {% if ded_open %}show{% endif %}" id="navDeductions">
+                    <ul class="nav-sub">
+                        <li><a href="{{ url_for('uniforms_list') }}" class="sidebar-link nav-sub-link {% if request.endpoint == 'uniforms_list' %}active{% endif %}">
+                            <i class="bi bi-bag-fill"></i><span>Uniforms</span></a></li>
+                        <li><a href="{{ url_for('laybys_list') }}" class="sidebar-link nav-sub-link {% if request.endpoint == 'laybys_list' %}active{% endif %}">
+                            <i class="bi bi-cart-fill"></i><span>Lay-bys</span></a></li>
+                        <li><a href="{{ url_for('undercharges_list') }}" class="sidebar-link nav-sub-link {% if request.endpoint == 'undercharges_list' %}active{% endif %}">
+                            <i class="bi bi-exclamation-circle-fill"></i><span>Undercharges</span></a></li>
+                        <li><a href="{{ url_for('requests_list') }}" class="sidebar-link nav-sub-link {% if 'request' in (request.endpoint or '') %}active{% endif %}">
+                            <i class="bi bi-inbox-fill"></i><span>Requests</span>
+                            {% if requests_pending %}<span class="nav-badge">{{ requests_pending }}</span>{% endif %}</a></li>
+                    </ul>
+                </div>
+            </li>
+
+            <!-- Payroll group -->
+            <li>
+                <button class="sidebar-link nav-group-btn" type="button"
+                        data-bs-toggle="collapse" data-bs-target="#navPayroll"
+                        aria-expanded="{{ 'true' if pay_open else 'false' }}">
+                    <i class="bi bi-calendar3-week"></i>
+                    <span>Payroll</span>
+                    <i class="bi bi-chevron-down nav-chevron {% if pay_open %}open{% endif %}"></i>
+                </button>
+                <div class="collapse {% if pay_open %}show{% endif %}" id="navPayroll">
+                    <ul class="nav-sub">
+                        <li><a href="{{ url_for('monthly_current') }}" class="sidebar-link nav-sub-link {% if 'monthly' in (request.endpoint or '') %}active{% endif %}">
+                            <i class="bi bi-calendar-check"></i><span>Monthly</span></a></li>
+                        <li><a href="{{ url_for('payroll_sheet') }}" class="sidebar-link nav-sub-link {% if request.endpoint == 'payroll_sheet' %}active{% endif %}">
+                            <i class="bi bi-file-earmark-spreadsheet"></i><span>Payroll Sheet</span></a></li>
+                        <li><a href="{{ url_for('payroll_period') }}" class="sidebar-link nav-sub-link {% if request.endpoint == 'payroll_period' %}active{% endif %}">
+                            <i class="bi bi-calendar-range"></i><span>Period Export</span></a></li>
+                        <li><a href="{{ url_for('payroll_sync') }}" class="sidebar-link nav-sub-link {% if request.endpoint == 'payroll_sync' %}active{% endif %}">
+                            <i class="bi bi-arrow-repeat"></i><span>Sync</span></a></li>
+                        <li><a href="{{ url_for('payroll_reconcile') }}" class="sidebar-link nav-sub-link {% if request.endpoint == 'payroll_reconcile' %}active{% endif %}">
+                            <i class="bi bi-check-all"></i><span>Reconcile</span></a></li>
+                    </ul>
+                </div>
+            </li>
+
+            <!-- Tools & Data group -->
+            <li>
+                <button class="sidebar-link nav-group-btn" type="button"
+                        data-bs-toggle="collapse" data-bs-target="#navTools"
+                        aria-expanded="{{ 'true' if tools_open else 'false' }}">
+                    <i class="bi bi-grid-3x3-gap-fill"></i>
+                    <span>Tools &amp; Data</span>
+                    <i class="bi bi-chevron-down nav-chevron {% if tools_open %}open{% endif %}"></i>
+                </button>
+                <div class="collapse {% if tools_open %}show{% endif %}" id="navTools">
+                    <ul class="nav-sub">
+                        <li><a href="{{ url_for('invoice_search') }}" class="sidebar-link nav-sub-link {% if request.endpoint == 'invoice_search' %}active{% endif %}">
+                            <i class="bi bi-receipt"></i><span>Invoice Search</span></a></li>
+                        <li><a href="{{ url_for('recent_activity') }}" class="sidebar-link nav-sub-link {% if request.endpoint == 'recent_activity' %}active{% endif %}">
+                            <i class="bi bi-stars"></i><span>Recent Activity</span></a></li>
+                        <li><a href="{{ url_for('stores_report') }}" class="sidebar-link nav-sub-link {% if request.endpoint == 'stores_report' %}active{% endif %}">
+                            <i class="bi bi-shop"></i><span>Stores</span></a></li>
+                        {% if session.admin_role in (none, 'super', 'retail') %}
+                        <li><a href="{{ url_for('cash_home') }}" class="sidebar-link nav-sub-link {% if 'cash' in (request.endpoint or '') %}active{% endif %}">
+                            <i class="bi bi-cash-stack"></i><span>Cash Recon</span></a></li>
+                        {% endif %}
+                        <li><a href="{{ url_for('import_center') }}" class="sidebar-link nav-sub-link {% if request.endpoint == 'import_center' %}active{% endif %}">
+                            <i class="bi bi-file-earmark-arrow-up"></i><span>Import Center</span></a></li>
+                        {% if session.admin_role in (none, 'super') %}
+                        <li><a href="{{ url_for('download_backup') }}" class="sidebar-link nav-sub-link">
+                            <i class="bi bi-database-down"></i><span>Backup</span></a></li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </li>
+
+            <li><hr class="sidebar-divider"></li>
+            {% if session.admin_role in (none, 'super') %}
+            <!-- Settings group -->
+            <li>
+                <button class="sidebar-link nav-group-btn" type="button"
+                        data-bs-toggle="collapse" data-bs-target="#navSettings"
+                        aria-expanded="{{ 'true' if settings_open else 'false' }}">
+                    <i class="bi bi-gear-fill"></i>
+                    <span>Settings</span>
+                    <i class="bi bi-chevron-down nav-chevron {% if settings_open %}open{% endif %}"></i>
+                </button>
+                <div class="collapse {% if settings_open %}show{% endif %}" id="navSettings">
+                    <ul class="nav-sub">
+                        <li><a href="{{ url_for('admin_staff_logins') }}" class="sidebar-link nav-sub-link {% if request.endpoint == 'admin_staff_logins' %}active{% endif %}">
+                            <i class="bi bi-key-fill"></i><span>Staff Logins</span></a></li>
+                        <li><a href="{{ url_for('admin_manage_admins') }}" class="sidebar-link nav-sub-link {% if request.endpoint == 'admin_manage_admins' %}active{% endif %}">
+                            <i class="bi bi-shield-lock-fill"></i><span>People &amp; Access</span></a></li>
+                        <li><a href="{{ url_for('admin_regional_managers') }}" class="sidebar-link nav-sub-link {% if request.endpoint == 'admin_regional_managers' %}active{% endif %}">
+                            <i class="bi bi-person-badge-fill"></i><span>Regional Managers</span></a></li>
+                        <li><a href="{{ url_for('admin_email') }}" class="sidebar-link nav-sub-link {% if request.endpoint == 'admin_email' %}active{% endif %}">
+                            <i class="bi bi-envelope-fill"></i><span>Email</span></a></li>
+                    </ul>
+                </div>
+            </li>
+            {% endif %}
+            <li>
+                <a href="{{ url_for('admin_logout') }}" class="sidebar-link nav-util-link">
+                    <i class="bi bi-box-arrow-right"></i><span>Log out</span>
+                </a>
+            </li>
+
+        </ul>
+        {% endif %}
+
+        <div class="sidebar-footer">Northwind Apparel &copy; {{ now.year if now is defined else 2026 }}</div>
+    </nav>
+
+    <!-- Mobile overlay (tap to close sidebar drawer) -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- Main -->
+    <div class="main-area">
+        <header class="topbar">
+            <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-label="Menu">
+                <i class="bi bi-list"></i>
+            </button>
+            <div class="topbar-context">
+                <h5 class="topbar-title">{% block page_title %}{% endblock %}</h5>
+                {% if current_workspace.key in ('retail', 'hq') %}
+                <span class="topbar-scope">{{ current_workspace.tab }}</span>
+                {% endif %}
+            </div>
+
+            {% if session.admin or not admin_auth_enabled %}
+            <!-- Global jump search (people / stores / cards). ⌘K or / to focus. -->
+            <div class="global-search" id="globalSearch">
+                <i class="bi bi-search global-search-icon"></i>
+                <input type="text" id="globalSearchInput" class="global-search-input"
+                       placeholder="Search people, stores, cards…" autocomplete="off"
+                       role="combobox" aria-expanded="false" aria-controls="globalSearchResults"
+                       aria-label="Search people, stores and cards">
+                <kbd class="global-search-kbd">⌘K</kbd>
+                <div class="global-search-results" id="globalSearchResults" role="listbox" hidden></div>
+            </div>
+            {% endif %}
+
+            <!-- Date picker dropdown -->
+            <div class="dropdown" id="datePickerWrapper"
+                 data-page-month="{{ page_month if page_month is defined else (now.month if now is defined else 0) }}"
+                 data-page-year="{{ page_year if page_year is defined else (now.year if now is defined else 2026) }}"
+                 data-month-target="{{ '/hq' if current_workspace.key == 'hq' else '' }}/monthly/{year}/{month}">
+                <button class="topbar-date dropdown-toggle" type="button" id="datePicker" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" style="border:none;cursor:pointer;">
+                    <i class="bi bi-calendar3 me-1"></i>{% if page_month and page_year %}{{ ['','January','February','March','April','May','June','July','August','September','October','November','December'][page_month] }} {{ page_year }}{% elif now is defined %}{{ now.strftime('%B %Y') }}{% endif %}
+                </button>
+                <div class="dropdown-menu dropdown-menu-end p-0" style="width:280px;background:var(--bg-elevated);border:1px solid var(--border-hover);border-radius:12px;overflow:hidden;margin-top:8px;">
+                    <!-- Year row -->
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 16px 10px;border-bottom:1px solid var(--border);">
+                        <button type="button" data-year-delta="-1" style="background:none;border:none;color:var(--text-secondary);font-size:18px;cursor:pointer;padding:0 6px;line-height:1;">‹</button>
+                        <span id="pickerYear" style="font-weight:700;font-size:16px;color:var(--text-primary);">{{ page_year if page_year is defined else (now.year if now is defined else 2026) }}</span>
+                        <button type="button" data-year-delta="1" style="background:none;border:none;color:var(--text-secondary);font-size:18px;cursor:pointer;padding:0 6px;line-height:1;">›</button>
+                    </div>
+                    <!-- Month grid -->
+                    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:12px;">
+                        {% set months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'] %}
+                        {% for m in months %}
+                        <a href="{{ '/hq' if current_workspace.key == 'hq' else '' }}/monthly/{{ page_year if page_year is defined else (now.year if now is defined else 2026) }}/{{ loop.index }}"
+                           class="month-pill {% if loop.index == (page_month if page_month is defined else (now.month if now is defined else 0)) %}month-pill-active{% endif %}"
+                           data-month="{{ loop.index }}">{{ m }}</a>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="content-area" id="mainContent" tabindex="-1">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% for cat, msg in messages %}
+                <span hidden data-flash-message="{{ msg }}" data-flash-category="{{ cat }}"></span>
+                {% endfor %}
+            {% endwith %}
+
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+</div>
+
+<nav class="mobile-product-dock" aria-label="Products and menu">
+    {% set dock = namespace(deductions_done=false) %}
+    {% for ws in workspaces %}
+        {% if ws.key in ('retail', 'hq') and not dock.deductions_done %}
+        <a href="{{ url_for(ws.endpoint) }}"
+           class="mobile-dock-link {% if current_workspace.key in ('retail','hq') %}active{% endif %}"
+           {% if current_workspace.key in ('retail','hq') %}aria-current="page"{% endif %}>
+            <i class="bi bi-layers"></i><span>Deductions</span>
+        </a>
+        {% set dock.deductions_done = true %}
+        {% elif ws.key == 'creditcard' %}
+        <a href="{{ url_for(ws.endpoint) }}"
+           class="mobile-dock-link {% if current_workspace.key == 'creditcard' %}active{% endif %}"
+           {% if current_workspace.key == 'creditcard' %}aria-current="page"{% endif %}>
+            <i class="bi bi-credit-card"></i><span>Cards</span>
+        </a>
+        {% elif ws.key == 'cashrecon' %}
+        <a href="{{ url_for(ws.endpoint) }}"
+           class="mobile-dock-link {% if current_workspace.key == 'cashrecon' %}active{% endif %}"
+           {% if current_workspace.key == 'cashrecon' %}aria-current="page"{% endif %}>
+            <i class="bi bi-cash-stack"></i><span>Cash</span>
+        </a>
+        {% endif %}
+    {% endfor %}
+    <button class="mobile-dock-link" type="button" data-mobile-menu
+            aria-controls="appSidebar" aria-expanded="false">
+        <i class="bi bi-list"></i><span>More</span>
+    </button>
+</nav>
+
+<div class="modal fade" id="shortcutModal" tabindex="-1" aria-labelledby="shortcutModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content shortcut-modal">
+            <div class="modal-header">
+                <div>
+                    <div class="eyebrow">Move faster</div>
+                    <h2 class="modal-title h5 mb-0" id="shortcutModalTitle">Keyboard shortcuts</h2>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body shortcut-list">
+                <div><span>Search anywhere</span><kbd>⌘ K</kbd></div>
+                <div><span>Open dashboard</span><span><kbd>G</kbd> <kbd>D</kbd></span></div>
+                <div><span>Open employees</span><span><kbd>G</kbd> <kbd>E</kbd></span></div>
+                <div><span>Open payroll</span><span><kbd>G</kbd> <kbd>P</kbd></span></div>
+                <div><span>Close drawer or dialog</span><kbd>Esc</kbd></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Notification Container -->
+<div id="toast-container" class="app-toast-container"></div>
+
+<script src="{{ url_for('static', filename='vendor/bootstrap.bundle.min.js') }}"></script>
+<script src="{{ url_for('static', filename='app-ui.js') }}" defer></script>
+<script src="{{ url_for('static', filename='invoice-fastfill.js') }}" defer></script>
+
+<script src="{{ url_for('static', filename='base-shell.js') }}"></script>
+<script src="{{ url_for('static', filename='nw-refresh.js') }}" defer></script>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

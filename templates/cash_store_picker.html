@@ -1,0 +1,19 @@
+{% extends 'cash_base.html' %}
+{% block title %}Choose store — Cash Recon{% endblock %}
+{% block content %}
+<p class="cr-label">Choose your store</p>
+<div class="cr-card" style="padding:6px 8px;">
+    {% for s in stores %}
+    <a href="{{ url_for('cash_store', store=s) }}"
+       style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 12px;text-decoration:none;color:inherit;{% if not loop.first %}border-top:0.5px solid rgba(28,28,28,0.08);{% endif %}">
+        <span style="display:flex;align-items:center;gap:12px;">
+            <i class="bi bi-shop" style="font-size:18px;color:#615b5c;"></i>
+            <span style="font-size:15px;font-weight:500;">{{ s }}</span>
+        </span>
+        <i class="bi bi-arrow-right" style="color:#1c1c1c;"></i>
+    </a>
+    {% else %}
+    <div style="padding:18px;color:#8a857d;font-size:14px;">No stores found.</div>
+    {% endfor %}
+</div>
+{% endblock %}

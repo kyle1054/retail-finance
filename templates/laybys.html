@@ -1,0 +1,419 @@
+{% extends 'base.html' %}
+{% block title %}Lay-by Plans — Northwind Deductions{% endblock %}
+{% block page_title %}Lay-by Plans{% endblock %}
+
+{% from '_pager.html' import pager as list_pager %}
+{% block content %}
+{# hq_laybys renders this template too and is not windowed: it passes neither
+   `pager` nor `totals`, and has no server-side ?q= search. Fall back to the old
+   whole-list figures there, and only wire the search box to the form on the
+   retail list where the server can actually honour it. #}
+{% set pager = pager|default(none) %}
+{% set list_windowed = pager is not none %}
+{% set totals = totals|default({
+     'plans': plans|length,
+     'employees': plans|map(attribute='employee_id')|list|unique|list|length,
+     'monthly': plans|sum(attribute='monthly_amount'),
+     'basket': plans|sum(attribute='basket_total'),
+     'outstanding': total_outstanding}) %}
+{% set status_label = 'Active' if status_filter == 'active' else 'Completed' if status_filter == 'complete' else 'Written-off' if status_filter == 'written_off' else 'Total' %}
+
+{% if schedule_issues %}
+<div class="alert alert-warning mb-3" style="border-left:4px solid #b45309;">
+    <div class="fw-bold mb-1">
+        <i class="bi bi-exclamation-triangle me-1"></i>
+        {{ schedule_issues|length }} lay-by{{ 's' if schedule_issues|length != 1 }} with numbers that don't add up
+        <span class="fw-normal" style="font-size:12px;color:#92400e;">— the monthly is deducted as agreed, but these plans should be checked</span>
+    </div>
+    {% for s in schedule_issues %}
+    <div style="font-size:13px;">
+        <a href="{{ url_for('employee_detail', emp_id=s.id) }}" class="fw-semibold text-decoration-none" style="color:#7a1c14;">{{ s.full_name }}</a>
+        <span style="color:#92400e;">· {{ s.current_store }} · R{{ "%.2f"|format(s.monthly) }}/mo × {{ s.term }} ({{ s.payments_made }} paid) — {{ s.problems|join('; ') }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Summary bar -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon bg-teal-soft"><i class="bi bi-cart-fill text-teal"></i></div>
+            <div>
+                <div class="stat-value">{{ totals.plans }}</div>
+                <div class="stat-label">{{ status_label }} Plans</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon bg-blue-soft"><i class="bi bi-currency-dollar text-blue"></i></div>
+            <div>
+                <div class="stat-value" style="font-size:20px;">R {{ "{:,.0f}".format(total_outstanding) }}</div>
+                <div class="stat-label">Total Balance</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon bg-amber-soft"><i class="bi bi-people-fill text-amber"></i></div>
+            <div>
+                <div class="stat-value">{{ totals.employees }}</div>
+                <div class="stat-label">Employees</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="stat-card">
+            <div class="stat-icon bg-red-soft"><i class="bi bi-calendar-month text-red"></i></div>
+            <div>
+                <div class="stat-value" style="font-size:20px;">R {{ "{:,.0f}".format(totals.monthly) }}</div>
+                <div class="stat-label">Monthly Total</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="plan-list-toolbar d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <div class="plan-filter-stack d-flex gap-2 flex-wrap">
+        <form class="plan-filter-form d-flex gap-2" method="get" id="laybyFilterForm">
+            {% if month_filter %}<input type="hidden" name="month" value="{{ month_filter }}">{% endif %}
+            {% if year_filter %}<input type="hidden" name="year" value="{{ year_filter }}">{% endif %}
+            <select name="store" class="form-select" style="width:auto;font-size:14px;" data-submit-on-change>
+                <option value="">All Stores</option>
+                {% for s in stores %}
+                    <option value="{{ s }}" {% if s == store_filter %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+            </select>
+            <select name="status" class="form-select" style="width:auto;font-size:14px;" data-submit-on-change>
+                <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
+                <option value="complete" {% if status_filter == 'complete' %}selected{% endif %}>Completed</option>
+                <option value="written_off" {% if status_filter == 'written_off' %}selected{% endif %}>Written off</option>
+                <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All statuses</option>
+            </select>
+            {% if store_filter or month_filter or status_filter != 'active' %}
+                <a href="{{ url_for(current_workspace.laybys_ep) }}" class="btn btn-outline-secondary btn-sm">Clear all</a>
+            {% endif %}
+        </form>
+        <div class="input-group search-bar" style="width:200px; max-height:38px;">
+            <input type="text" id="listSearch" {% if list_windowed %}name="q" form="laybyFilterForm" value="{{ search }}"{% endif %} class="form-control" placeholder="Search name or desc…" style="font-size:13px; height:38px;">
+            {% if list_windowed %}<button class="btn btn-outline-secondary" type="submit" form="laybyFilterForm" aria-label="Search plans"><i class="bi bi-search"></i></button>{% endif %}
+        </div>
+    </div>
+    <div class="plan-toolbar-actions d-flex align-items-center gap-3">
+        {% if month_filter and year_filter %}
+        <span style="font-size:12px;background:var(--accent-soft);color:var(--accent-2);padding:4px 10px;border-radius:6px;font-weight:600;">
+            <i class="bi bi-calendar3 me-1"></i>{{ MONTH_NAMES[month_filter] }} {{ year_filter }}
+            <a href="{{ url_for(current_workspace.laybys_ep) }}{% if store_filter %}?store={{ store_filter }}{% endif %}"
+               style="color:var(--accent-2);margin-left:6px;opacity:.7;">✕</a>
+        </span>
+        
+        <!-- Batch confirm lay-by payments for this month -->
+        <form method="post" action="{{ url_for(current_workspace.pay_all_ep, year=year_filter, month=month_filter) }}"
+              data-confirm="Mark ALL Lay-by deductions{% if store_filter %} for {{ store_filter }}{% endif %} as paid for {{ MONTH_NAMES[month_filter] }} {{ year_filter }}?">
+            <input type="hidden" name="cat" value="layby">
+            <input type="hidden" name="store" value="{{ store_filter }}">
+            <button type="submit" class="btn btn-teal btn-sm text-white px-3" style="background:#235e54;border:none;height:31px;display:flex;align-items:center;gap:4px;font-size:13px;font-weight:600;border-radius:6px;">
+                <i class="bi bi-cart-check"></i>Pay All Lay-bys
+            </button>
+        </form>
+        {% endif %}
+        <span style="font-size:13px;color:#94a3b8;" id="plans-count-label">{{ totals.plans }} {{ status_label|lower }} plan{{ 's' if totals.plans != 1 }}{% if store_filter %} · {{ store_filter }}{% endif %}</span>
+        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addLaybyModal" style="font-size:13px;">
+            <i class="bi bi-plus-lg me-1"></i>Add Lay-by
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0 mobile-card-table plan-data-table">
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th>Store</th>
+                    <th>Description</th>
+                    <th style="text-align:right;">Basket</th>
+                    <th style="text-align:right;">Monthly</th>
+                    <th style="text-align:center;">Progress</th>
+                    <th style="text-align:right;">Balance</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set ns = namespace(last_store='') %}
+                {% for p in plans %}
+                {% if p.current_store != ns.last_store %}
+                    {% set ns.last_store = p.current_store %}
+                    <tr class="store-group-row">
+                        <td colspan="8" style="font-weight:600;font-size:12px;color:var(--text-secondary);padding:6px 16px;">
+                            <i class="bi bi-shop me-1"></i>{{ p.current_store }}
+                        </td>
+                    </tr>
+                {% endif %}
+                <tr>
+                    <td class="mobile-card-primary" data-label="Employee">
+                        <div class="fw-semibold" style="font-size:14px;">{{ p.full_name }}</div>
+                        <div style="font-size:11px;color:#94a3b8;">{{ p.job_title }}</div>
+                    </td>
+                    <td class="mobile-card-store" data-label="Store" style="font-size:13px;color:#64748b;">{{ p.current_store }}</td>
+                    <td class="mobile-card-description" data-label="Description">
+                        <div style="font-size:13px;">{{ p.description or '—' }}</div>
+                        {% if p.sale_number %}<div style="font-size:11px;color:#94a3b8;">Sale #{{ p.sale_number }}</div>{% endif %}
+                        <div style="font-size:11px;color:#94a3b8;">
+                            {{ p.discount_pct|int }}% disc · Started {{ MONTH_NAMES[p.start_month] }} {{ p.start_year }}
+                        </div>
+                    </td>
+                    <td class="mobile-card-basket" data-label="Basket" style="text-align:right;font-size:13px;color:#64748b;">
+                        R {{ "%.2f"|format(p.basket_total) }}
+                    </td>
+                    <td class="mobile-card-monthly" data-label="Monthly" style="text-align:right;font-size:14px;color:#235e54;font-weight:600;">
+                        R {{ "%.2f"|format(p.monthly_amount) }}
+                        {% if p.pmt_paid is not none %}
+                            <div style="margin-top:3px;">
+                                {% if p.pmt_paid %}
+                                    <span style="font-size:10px;font-weight:600;background:rgba(47,125,112,.15);color:#3a8a72;padding:2px 6px;border-radius:4px;">PAID</span>
+                                {% else %}
+                                    <span style="font-size:10px;font-weight:600;background:rgba(168,71,47,.15);color:#b06a5a;padding:2px 6px;border-radius:4px;">DUE</span>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    </td>
+                    <td class="mobile-card-progress" data-label="Progress" style="text-align:center;">
+                        <div style="font-size:12px;color:#64748b;margin-bottom:3px;">
+                            {{ p.payments_made }}/{{ p.term_months }}
+                        </div>
+                        <div class="progress" style="height:6px;width:80px;margin:0 auto;">
+                            <div class="progress-bar bg-info"
+                                 style="width:{{ (p.payments_made / p.term_months * 100)|int }}%"></div>
+                        </div>
+                        <div style="font-size:11px;color:#94a3b8;margin-top:2px;">{{ p.payments_left }} left</div>
+                    </td>
+                    <td class="mobile-card-value" data-label="Balance" style="text-align:right;font-weight:700;font-size:14px;">
+                        R {{ "%.2f"|format(p.balance) }}
+                    </td>
+                    <td class="mobile-card-actions">
+                        <a href="{{ url_for(current_workspace.employee_detail_ep, emp_id=p.employee_id) }}"
+                           class="btn btn-sm btn-outline-secondary" style="font-size:11px;padding:2px 8px;">
+                            View <i class="bi bi-arrow-right ms-1"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-4">
+                        <i class="bi bi-cart me-2"></i>No active lay-by plans{% if store_filter %} for {{ store_filter }}{% endif %}.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            {% if plans %}
+            <tfoot>
+                <tr style="background:rgba(47,125,112,.08);font-weight:700;">
+                    <td colspan="3">Total{% if pager and pager.pages > 1 %} (all {{ pager.total }} plans){% endif %}</td>
+                    <td style="text-align:right;">R {{ "%.2f"|format(totals.basket) }}</td>
+                    <td style="text-align:right;color:#3a8a72;">R {{ "%.2f"|format(totals.monthly) }}</td>
+                    <td></td>
+                    <td style="text-align:right;">R {{ "%.2f"|format(total_outstanding) }}</td>
+                    <td></td>
+                </tr>
+            </tfoot>
+            {% endif %}
+        </table>
+    </div>
+    {{ list_pager(pager) }}
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     EXPORT SECTION
+     ═══════════════════════════════════════════════════ -->
+<div class="card mt-4" id="exportSection" style="border:1px solid rgba(47,125,112,.25);">
+    <div class="card-body" style="padding:20px 24px;">
+        <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-3">
+                <div style="width:38px;height:38px;border-radius:10px;background:rgba(47,125,112,.15);display:flex;align-items:center;justify-content:center;">
+                    <i class="bi bi-file-earmark-spreadsheet text-teal" style="font-size:18px;color:#235e54;"></i>
+                </div>
+                <div>
+                    <div class="fw-bold" style="font-size:15px;">Export Lay-by Plans</div>
+                    <div style="font-size:12px;color:#94a3b8;">Download active plans as a formatted Excel workbook (2 sheets: detail + store summary)</div>
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <a href="{{ url_for(current_workspace.laybys_export_ep) }}{% if store_filter %}?store={{ store_filter }}{% endif %}"
+                   class="btn btn-sm fw-semibold"
+                   id="quickExportLaybys"
+                   style="padding:7px 18px;font-size:13px;background:#235e54;color:#fff;border:none;">
+                    <i class="bi bi-download me-1"></i>Quick Export{% if store_filter %} · {{ store_filter }}{% else %} All Stores{% endif %}
+                </a>
+                <button class="btn btn-outline-secondary btn-sm"
+                        style="font-size:13px;padding:7px 14px;"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#laybyExportOptions"
+                        aria-expanded="false">
+                    <i class="bi bi-sliders me-1"></i>Custom Range
+                </button>
+            </div>
+        </div>
+
+        <div class="collapse" id="laybyExportOptions">
+            <div style="background:var(--bg-elevated);border-radius:10px;padding:16px;border:1px solid var(--border);">
+                <form id="laybyExportForm" action="{{ url_for(current_workspace.laybys_export_ep) }}" method="get" target="_blank">
+                    {% if store_filter %}<input type="hidden" name="store" value="{{ store_filter }}">{% endif %}
+                    <div class="row g-3 align-items-end">
+                        <div class="col-12">
+                            <div style="font-size:12px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Filter by Start Month Range</div>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label fw-semibold" style="font-size:12px;">From Month</label>
+                            <select name="from_month" id="lbFromMonth" class="form-select form-select-sm">
+                                {% for i in range(1,13) %}
+                                    <option value="{{ i }}" {% if i == now.month %}selected{% endif %}>{{ MONTH_NAMES[i] }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <label class="form-label fw-semibold" style="font-size:12px;">From Year</label>
+                            <input type="number" name="from_year" id="lbFromYear" class="form-control form-control-sm" value="{{ now.year }}" min="2020" max="2035">
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label fw-semibold" style="font-size:12px;">To Month</label>
+                            <select name="to_month" id="lbToMonth" class="form-select form-select-sm">
+                                {% for i in range(1,13) %}
+                                    <option value="{{ i }}" {% if i == now.month %}selected{% endif %}>{{ MONTH_NAMES[i] }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <label class="form-label fw-semibold" style="font-size:12px;">To Year</label>
+                            <input type="number" name="to_year" id="lbToYear" class="form-control form-control-sm" value="{{ now.year }}" min="2020" max="2035">
+                        </div>
+                        <div class="col-12 col-md-2">
+                            <button type="submit" class="btn btn-sm w-100 fw-semibold" style="font-size:13px;padding:7px 0;background:#235e54;color:#fff;border:none;">
+                                <i class="bi bi-download me-1"></i>Export Range
+                            </button>
+                        </div>
+                    </div>
+                    <div style="font-size:11px;color:#64748b;margin-top:10px;">
+                        <i class="bi bi-info-circle me-1"></i>Range filter applies to plan start date. Leave unchanged to export all active plans.
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Lay-by Modal -->
+<div class="modal fade" id="addLaybyModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content border-0" style="border-radius:14px;">
+            <div class="modal-header border-0 pb-0">
+                <h6 class="modal-title fw-bold"><i class="bi bi-cart-fill me-2 text-teal"></i>Add Lay-by Plan</h6>
+                <button class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{{ url_for('add_layby') }}" id="addLaybyForm">
+                <div class="modal-body">
+                    <!-- Store + Employee -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold" style="font-size:13px;">Store</label>
+                            <select id="lbStoreSelect" class="form-select">
+                                <option value="">— Select store —</option>
+                                {% for s in all_stores %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold" style="font-size:13px;">Employee</label>
+                            <select name="employee_id" id="lbEmpSelect" class="form-select" required>
+                                <option value="">— Select employee —</option>
+                                {% for e in all_employees %}
+                                <option value="{{ e.id }}" data-store="{{ e.current_store }}">{{ e.full_name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <!-- Sale number -->
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold" style="font-size:13px;">Sale Number</label>
+                        <input type="text" name="sale_number" class="form-control" placeholder="e.g. SO-123456">
+                    </div>
+                    <!-- Basket items -->
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold" style="font-size:13px;">Items</label>
+                        <div id="basketItems">
+                            <div class="basket-row row g-1 mb-1 align-items-center">
+                                <div class="col-5"><input type="text" name="item_desc_0" class="form-control form-control-sm" placeholder="Description" required></div>
+                                <div class="col-3"><input type="number" name="item_price_0" class="form-control form-control-sm item-price" placeholder="Unit price" step="0.01" min="0" required></div>
+                                <div class="col-2"><input type="number" name="item_qty_0" class="form-control form-control-sm item-qty" placeholder="Qty" value="1" min="1" required></div>
+                                <div class="col-2 text-end item-line-total" style="font-size:13px;font-weight:600;">R 0.00</div>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-outline-secondary btn-sm mt-1" id="addItemRow">
+                            <i class="bi bi-plus-lg me-1"></i>Add Item
+                        </button>
+                    </div>
+                    <!-- Basket summary -->
+                    <div class="p-3 mb-3" style="background:var(--bg-elevated);border-radius:8px;border:1px solid var(--border);">
+                        <div class="row g-2 align-items-end">
+                            <div class="col-md-3">
+                                <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;">Basket Total</div>
+                                <div id="basketTotal" class="fw-bold" style="font-size:18px;">R 0.00</div>
+                            </div>
+                            <div class="col-md-2">
+                                <label style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;">Discount %</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="number" name="discount_pct" id="discountPct" class="form-control" value="40" min="0" max="100" step="0.1">
+                                    <span class="input-group-text">%</span>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;">After Discount</div>
+                                <div id="discountedTotal" class="fw-bold" style="font-size:18px;color:#6d89ad;">R 0.00</div>
+                            </div>
+                            <div class="col-md-2">
+                                <label style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;">Months</label>
+                                <select name="term_months" id="termMonths" class="form-select form-select-sm">
+                                    {% for i in range(1,13) %}<option value="{{ i }}" {% if i==3 %}selected{% endif %}>{{ i }}</option>{% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;">Per Month</div>
+                                <div id="monthlyCalc" class="fw-bold" style="font-size:18px;color:#3a8a72;">R 0.00</div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Start + notes -->
+                    <div class="row g-2">
+                        <div class="col-4">
+                            <label class="form-label fw-semibold" style="font-size:13px;">Start Month</label>
+                            <select name="start_month" class="form-select form-select-sm">
+                                {% for i in range(1,13) %}<option value="{{ i }}" {% if i==now.month %}selected{% endif %}>{{ MONTH_NAMES[i] }}</option>{% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-3">
+                            <label class="form-label fw-semibold" style="font-size:13px;">Year</label>
+                            <input type="number" name="start_year" class="form-control form-control-sm" value="{{ now.year }}">
+                        </div>
+                        <div class="col-5">
+                            <label class="form-label fw-semibold" style="font-size:13px;">Notes</label>
+                            <input type="text" name="notes" class="form-control form-control-sm" placeholder="Optional">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary btn-sm px-4">Add Lay-by Plan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<span id="laybysConfig" hidden
+      data-month-nav-target="{{ url_for(current_workspace.laybys_ep) }}?{% if store_filter %}store={{ store_filter }}&amp;{% endif %}year={year}&amp;month={month}"></span>
+<script src="{{ url_for('static', filename='laybys.js') }}"></script>
+{% endblock %}
